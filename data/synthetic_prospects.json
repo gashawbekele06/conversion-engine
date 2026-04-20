@@ -1,0 +1,146 @@
+{
+  "note": "Synthetic prospects for challenge-week testing. Contact details are fictitious. Every outbound message routes to the staff sink unless TENACIOUS_LIVE=1 is set.",
+  "prospects": [
+    {
+      "id": "prospect_001",
+      "crunchbase_id": "cb_sample_001",
+      "company_name": "Nimbus Ledger Inc.",
+      "segment_hint": 1,
+      "sector": "fintech",
+      "employee_count": 48,
+      "contact": {
+        "first_name": "Priya",
+        "last_name": "Ananthakrishnan",
+        "title": "VP Engineering",
+        "email": "priya@nimbusledger.example",
+        "phone_e164": "+12125550101"
+      },
+      "signals": {
+        "funding": { "round": "Series B", "amount_usd": 14000000, "announced_on": "2026-02-12" },
+        "open_engineering_roles": { "total": 11, "python": 7, "ml": 1, "data": 2, "delta_60d": 8 },
+        "layoffs_120d": null,
+        "leadership_change_90d": null,
+        "ai_maturity_inputs": {
+          "ai_adjacent_roles_fraction": 0.09,
+          "named_ai_leadership": false,
+          "github_org_activity": "low",
+          "exec_commentary_last_12mo": 0,
+          "modern_data_stack": ["dbt", "Snowflake"]
+        }
+      }
+    },
+    {
+      "id": "prospect_002",
+      "crunchbase_id": "cb_sample_017",
+      "company_name": "Glenmark Commerce",
+      "segment_hint": 2,
+      "sector": "ecommerce",
+      "employee_count": 920,
+      "contact": {
+        "first_name": "Marcus",
+        "last_name": "Okafor",
+        "title": "SVP Platform Engineering",
+        "email": "marcus@glenmark.example",
+        "phone_e164": "+14155550102"
+      },
+      "signals": {
+        "funding": null,
+        "open_engineering_roles": { "total": 4, "python": 2, "ml": 0, "data": 1, "delta_60d": -6 },
+        "layoffs_120d": { "date": "2026-01-28", "headcount": 210, "percent": 0.18 },
+        "leadership_change_90d": null,
+        "ai_maturity_inputs": {
+          "ai_adjacent_roles_fraction": 0.0,
+          "named_ai_leadership": false,
+          "github_org_activity": "none",
+          "exec_commentary_last_12mo": 1,
+          "modern_data_stack": ["Snowflake"]
+        }
+      }
+    },
+    {
+      "id": "prospect_003",
+      "crunchbase_id": "cb_sample_042",
+      "company_name": "Aurelia Health",
+      "segment_hint": 3,
+      "sector": "healthtech",
+      "employee_count": 340,
+      "contact": {
+        "first_name": "Daniela",
+        "last_name": "Ruiz",
+        "title": "Chief Technology Officer",
+        "email": "daniela@aureliahealth.example",
+        "phone_e164": "+16175550103"
+      },
+      "signals": {
+        "funding": { "round": "Series C", "amount_usd": 55000000, "announced_on": "2025-08-05" },
+        "open_engineering_roles": { "total": 6, "python": 3, "ml": 1, "data": 1, "delta_60d": 2 },
+        "layoffs_120d": null,
+        "leadership_change_90d": { "role": "CTO", "appointment_date": "2026-02-28" },
+        "ai_maturity_inputs": {
+          "ai_adjacent_roles_fraction": 0.16,
+          "named_ai_leadership": true,
+          "github_org_activity": "medium",
+          "exec_commentary_last_12mo": 3,
+          "modern_data_stack": ["dbt", "Databricks", "Weights & Biases"]
+        }
+      }
+    },
+    {
+      "id": "prospect_004",
+      "crunchbase_id": "cb_sample_089",
+      "company_name": "Orinda AI Labs",
+      "segment_hint": 4,
+      "sector": "ml-infra",
+      "employee_count": 72,
+      "contact": {
+        "first_name": "Hiroshi",
+        "last_name": "Tanaka",
+        "title": "Head of ML Platform",
+        "email": "hiroshi@orindaailabs.example",
+        "phone_e164": "+19085550104"
+      },
+      "signals": {
+        "funding": { "round": "Series A", "amount_usd": 18000000, "announced_on": "2025-11-02" },
+        "open_engineering_roles": { "total": 9, "python": 4, "ml": 5, "data": 2, "delta_60d": 4 },
+        "layoffs_120d": null,
+        "leadership_change_90d": null,
+        "ai_maturity_inputs": {
+          "ai_adjacent_roles_fraction": 0.55,
+          "named_ai_leadership": true,
+          "github_org_activity": "high",
+          "exec_commentary_last_12mo": 5,
+          "modern_data_stack": ["Ray", "vLLM", "Weights & Biases", "Databricks"],
+          "public_rfp_or_blog": "blog: scaling multi-tenant inference on Ray, Mar 2026"
+        }
+      }
+    },
+    {
+      "id": "prospect_005",
+      "crunchbase_id": "cb_sample_113",
+      "company_name": "Cedar Logistics",
+      "segment_hint": 2,
+      "sector": "logistics-saas",
+      "employee_count": 610,
+      "contact": {
+        "first_name": "Amelie",
+        "last_name": "Bernard",
+        "title": "VP Engineering",
+        "email": "amelie@cedarlogistics.example",
+        "phone_e164": "+33755550105"
+      },
+      "signals": {
+        "funding": null,
+        "open_engineering_roles": { "total": 2, "python": 1, "ml": 0, "data": 0, "delta_60d": -3 },
+        "layoffs_120d": { "date": "2026-03-11", "headcount": 85, "percent": 0.12 },
+        "leadership_change_90d": null,
+        "ai_maturity_inputs": {
+          "ai_adjacent_roles_fraction": 0.0,
+          "named_ai_leadership": false,
+          "github_org_activity": "low",
+          "exec_commentary_last_12mo": 0,
+          "modern_data_stack": []
+        }
+      }
+    }
+  ]
+}

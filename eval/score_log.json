@@ -1,0 +1,27 @@
+{
+  "entries": [
+    {
+      "run_id": "run_75adb73e",
+      "run_label": "INTERIM_PLACEHOLDER",
+      "ts": 1776693256.047608,
+      "model": "qwen/qwen3-next-80b-a3b",
+      "slice": "dev",
+      "trials": 5,
+      "tasks": 30,
+      "pass_rates": [
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "pass_rate_mean": null,
+      "pass_rate_ci95_low": null,
+      "pass_rate_ci95_high": null,
+      "cost_usd_total": 0.0,
+      "latency_ms_p50": null,
+      "latency_ms_p95": null,
+      "notes": "mock_run: no \u03c4\u00b2-Bench call made; pass_rates recorded as None to avoid fabricated numbers. Re-run with --real after wiring OpenRouter."
+    }
+  ]
+}

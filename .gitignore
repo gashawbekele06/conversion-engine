@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Trace & eval artifacts that are regenerated per run
+eval/traces/email_sink.jsonl
+eval/traces/sms_sink.jsonl
+eval/traces/hubspot_mock.json
+eval/traces/calcom_mock.json
+eval/traces/inbox.jsonl
+# Keep trace_log.jsonl in git for reproducibility audits
+# eval/traces/trace_log.jsonl
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+
+# Playwright
+.playwright/
+
+# τ²-Bench submodule build artifacts
+tau2-bench/__pycache__/

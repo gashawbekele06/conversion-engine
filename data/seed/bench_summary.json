@@ -1,0 +1,43 @@
+{
+  "as_of": "2026-04-20",
+  "refresh_cadence": "weekly_monday_0900_UTC",
+  "note": "Counts reflect engineers between engagements. The agent MUST NOT promise capacity beyond these counts.",
+  "capabilities": {
+    "python_backend": {
+      "available_engineers": 7,
+      "seniority_mix": { "senior": 3, "mid": 3, "junior": 1 },
+      "notes": "FastAPI, Django, Postgres heavy. Two with LLM-app experience."
+    },
+    "python_data": {
+      "available_engineers": 4,
+      "seniority_mix": { "senior": 2, "mid": 2, "junior": 0 },
+      "notes": "Airflow, dbt, Snowflake, Databricks. One with Ray."
+    },
+    "ml_platform": {
+      "available_engineers": 2,
+      "seniority_mix": { "senior": 2, "mid": 0, "junior": 0 },
+      "notes": "MLflow, Weights & Biases, model-serving. Constrained — gate Segment 4 pitches on this."
+    },
+    "golang_infra": {
+      "available_engineers": 3,
+      "seniority_mix": { "senior": 1, "mid": 2, "junior": 0 },
+      "notes": "Kubernetes, gRPC, service mesh."
+    },
+    "frontend_react": {
+      "available_engineers": 5,
+      "seniority_mix": { "senior": 1, "mid": 3, "junior": 1 },
+      "notes": "React + Next.js. Limited native mobile."
+    },
+    "agentic_systems": {
+      "available_engineers": 1,
+      "seniority_mix": { "senior": 1, "mid": 0, "junior": 0 },
+      "notes": "Single engineer; treat as proof-of-concept capacity only."
+    }
+  },
+  "hard_constraints": {
+    "max_simultaneous_starts_per_week": 3,
+    "earliest_start_date_days_out": 14,
+    "geos_blocked": []
+  },
+  "escalation_rule": "If the prospect asks for staffing beyond the counts above OR a start date < 14 days, the agent must hand off to a human delivery lead rather than committing."
+}

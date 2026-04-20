@@ -1,0 +1,26 @@
+{
+  "slice": "held_out",
+  "note": "20-task sealed held-out slice of τ²-Bench retail. Sealed by program staff; task content is not exposed until Act IV scoring. Placeholder IDs only — replace with the program-delivered sealed partition manifest.",
+  "tasks": [
+    {"task_id": "retail_held_001", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_002", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_003", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_004", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_005", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_006", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_007", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_008", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_009", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_010", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_011", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_012", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_013", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_014", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_015", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_016", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_017", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_018", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_019", "domain": "retail", "tag": "SEALED"},
+    {"task_id": "retail_held_020", "domain": "retail", "tag": "SEALED"}
+  ]
+}

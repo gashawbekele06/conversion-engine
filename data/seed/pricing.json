@@ -1,0 +1,28 @@
+{
+  "note": "Public-tier pricing bands. Agent may quote these. Deeper pricing (volume discounts, multi-year, retainer) MUST route to a human.",
+  "as_of": "2026-04-20",
+  "talent_outsourcing": {
+    "description": "Dedicated engineer, monthly bill rate USD, Tenacious-managed.",
+    "bands": {
+      "mid_engineer": { "monthly_usd_low": 7500, "monthly_usd_high": 9500 },
+      "senior_engineer": { "monthly_usd_low": 10500, "monthly_usd_high": 13500 },
+      "staff_engineer": { "monthly_usd_low": 15000, "monthly_usd_high": 19000 }
+    },
+    "minimums": { "engineers": 3, "duration_months": 6 },
+    "typical_acv_usd": { "low": 240000, "high": 720000 }
+  },
+  "project_consulting": {
+    "description": "Time-boxed project delivery with defined scope.",
+    "bands": {
+      "ml_platform_migration": { "project_usd_low": 120000, "project_usd_high": 280000 },
+      "agentic_system_pilot": { "project_usd_low": 80000, "project_usd_high": 180000 },
+      "data_contracts_rollout": { "project_usd_low": 90000, "project_usd_high": 200000 }
+    },
+    "typical_acv_usd": { "low": 80000, "high": 300000 }
+  },
+  "discovery_call": {
+    "duration_minutes": 30,
+    "price_usd": 0,
+    "note": "Free discovery call booked via Cal.com. Agent's final objective."
+  }
+}
