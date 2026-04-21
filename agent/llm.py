@@ -40,6 +40,21 @@ class LLM:
         with tracer.trace("llm.generate", model=self.config.llm_model,
                           temperature=temperature) as attrs:
             start = time.time()
+            # Eval tier: use Anthropic SDK directly when key is available
+            if self.config.llm_tier == "eval" and self.config.anthropic_api_key:
+                try:
+                    r = self._call_anthropic(system=system, user=user,
+                                             temperature=temperature, max_tokens=max_tokens)
+                    r.latency_ms = (time.time() - start) * 1000.0
+                    attrs.update({"fallback": False, "cost_usd": r.usd_cost,
+                                  "in_tok": r.input_tokens, "out_tok": r.output_tokens,
+                                  "provider": "anthropic"})
+                    return r
+                except Exception as exc:  # noqa: BLE001
+                    r = self._fallback(system=system, user=user, error=str(exc))
+                    r.latency_ms = (time.time() - start) * 1000.0
+                    attrs.update({"fallback": True, "llm_error": str(exc)})
+                    return r
             if not self.config.openrouter_api_key:
                 r = self._fallback(system=system, user=user)
                 r.latency_ms = (time.time() - start) * 1000.0
@@ -86,6 +101,32 @@ class LLM:
                 r.latency_ms = (time.time() - start) * 1000.0
                 attrs.update({"fallback": True, "llm_error": str(exc)})
                 return r
+
+    def _call_anthropic(self, *, system: str, user: str, temperature: float,
+                        max_tokens: int) -> LLMResponse:
+        import anthropic  # type: ignore
+        client = anthropic.Anthropic(api_key=self.config.anthropic_api_key)
+        message = client.messages.create(
+            model=self.config.llm_model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        )
+        text = message.content[0].text
+        in_tok = message.usage.input_tokens
+        out_tok = message.usage.output_tokens
+        # Approximate cost: claude-sonnet-4-6 pricing ~$3/M in, $15/M out
+        cost = (in_tok * 3.0 + out_tok * 15.0) / 1_000_000
+        return LLMResponse(
+            text=text,
+            model=self.config.llm_model,
+            usd_cost=cost,
+            latency_ms=0.0,  # caller sets this
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+            fallback_used=False,
+        )
 
     def _fallback(self, *, system: str, user: str,
                   error: str | None = None) -> LLMResponse:

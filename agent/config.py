@@ -42,10 +42,12 @@ class Config:
     langfuse_host: str = field(default_factory=lambda: os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"))
 
     # ---- LLM (OpenRouter / Claude / OpenAI) ----
+    anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
     openrouter_api_key: str = field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY", ""))
+    
     llm_tier: str = field(default_factory=lambda: os.getenv("LLM_TIER", "dev"))  # dev | eval
     llm_model_dev: str = field(default_factory=lambda: os.getenv("LLM_MODEL_DEV", "qwen/qwen3-next-80b-a3b"))
-    llm_model_eval: str = field(default_factory=lambda: os.getenv("LLM_MODEL_EVAL", "anthropic/claude-sonnet-4.6"))
+    llm_model_eval: str = field(default_factory=lambda: os.getenv("LLM_MODEL_EVAL", "claude-sonnet-4-6"))
 
     # ---- Staff sink ----
     staff_sink_email: str = field(default_factory=lambda: os.getenv("STAFF_SINK_EMAIL", "challenge-sink@tenacious.internal"))
