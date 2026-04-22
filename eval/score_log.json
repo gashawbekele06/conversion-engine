@@ -22,6 +22,29 @@
       "latency_ms_p50": null,
       "latency_ms_p95": null,
       "notes": "mock_run: no \u03c4\u00b2-Bench call made; pass_rates recorded as None to avoid fabricated numbers. Re-run with --real after wiring OpenRouter."
+    },
+    {
+      "run_id": "run_14e99ac7",
+      "run_label": "simulation_baseline_v1",
+      "ts": 1776849897.3108356,
+      "model": "qwen/qwen3-next-80b-a3b",
+      "slice": "dev",
+      "trials": 5,
+      "tasks": 30,
+      "pass_rates": [
+        0.4666666666666667,
+        0.4,
+        0.5,
+        0.4666666666666667,
+        0.43333333333333335
+      ],
+      "pass_rate_mean": 0.4533333333333333,
+      "pass_rate_ci95_low": 0.4235,
+      "pass_rate_ci95_high": 0.4831,
+      "cost_usd_total": 0.0,
+      "latency_ms_p50": 1380.5021059272972,
+      "latency_ms_p95": 1827.7092971523557,
+      "notes": "simulation_baseline_v1: Bernoulli(p=0.4) per task, seed=42. Per-task latency drawn from Normal(1400,300) ms. Harder-tag tasks (cancel_then_rebook, duplicate_order, escalation_decline, cross_border_tax, cross_sell_decline) use p-0.05. This simulation will be replaced by a real \u03c4\u00b2-Bench run on Day 3 once the pinned model and OpenRouter key are confirmed. Published reference ceiling: ~0.42 pass@1 (\u03c4\u00b2-Bench leaderboard, Feb 2026)."
     }
   ]
 }
