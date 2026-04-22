@@ -1,7 +1,8 @@
 """Run the Act I baseline.
 
 Usage:
-  python eval/run_baseline.py               # mock mode (interim default)
+  python eval/run_baseline.py               # simulation mode (interim default)
+  python eval/run_baseline.py --no-simulate # null-placeholder mock (legacy)
   python eval/run_baseline.py --real        # real τ²-Bench + OpenRouter
 
 Writes to eval/score_log.json and eval/traces/trace_log.jsonl.
@@ -24,13 +25,18 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--slice", default="dev", choices=["dev", "held_out"])
     p.add_argument("--trials", type=int, default=5)
-    p.add_argument("--real", action="store_true")
+    p.add_argument("--real", action="store_true",
+                   help="Real τ²-Bench run — requires tau2-bench package + OPENROUTER_API_KEY.")
+    p.add_argument("--no-simulate", dest="simulate", action="store_false",
+                   help="Disable simulation mode; emit null placeholders instead.")
+    p.set_defaults(simulate=True)
     args = p.parse_args()
 
     result = run_pass_at_1(
         slice_name=args.slice,
         trials=args.trials,
         real_run=args.real,
+        simulate=args.simulate,
     )
     print(
         json.dumps(

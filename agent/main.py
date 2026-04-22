@@ -25,7 +25,13 @@ def _cmd_enrich(args: argparse.Namespace) -> int:
 
 def _cmd_run_one(args: argparse.Namespace) -> int:
     prospects = load_synthetic_prospects()
-    match = next((p for p in prospects if p["id"] == args.prospect_id), None)
+    #match = next((p for p in prospects if p["id"] == args.prospect_id), None)
+    key = args.prospect_id
+    match = next(
+        (p for p in prospects
+        if p["id"] == key or p.get("crunchbase_id") == key),
+        None,
+    )
     if not match:
         print(f"No prospect {args.prospect_id}; options: "
               f"{[p['id'] for p in prospects]}", file=sys.stderr)

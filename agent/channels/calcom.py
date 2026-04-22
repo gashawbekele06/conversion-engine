@@ -35,7 +35,8 @@ class CalcomChannel:
         with tracer.trace("calcom.offer_slots", prospect=prospect_email, tz=timezone) as attrs:
             # Interim: generate synthetic slots at 10/14/16h local over next 3 business days.
             import datetime as dt
-            now = dt.datetime.utcnow()
+            #now = dt.datetime.utcnow()
+            now = dt.datetime.now(dt.timezone.utc)
             slots: list[str] = []
             day_offset = 1
             while len(slots) < count:

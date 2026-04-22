@@ -1,0 +1,59 @@
+services:
+  - type: web
+    name: tenacious-conversion-engine
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+
+    envVars:
+      # Kill switch — leave unset until program-staff review
+      - key: TENACIOUS_LIVE
+        value: "0"
+      - key: LLM_TIER
+        value: dev
+
+      # LLM — set in Render dashboard; do NOT commit secrets here
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # Email
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAILERSEND_API_KEY
+        sync: false
+
+      # SMS
+      - key: AT_USERNAME
+        value: sandbox
+      - key: AT_API_KEY
+        sync: false
+
+      # HubSpot
+      - key: HUBSPOT_TOKEN
+        sync: false
+      - key: HUBSPOT_WEBHOOK_SECRET
+        sync: false
+
+      # Cal.com
+      - key: CALCOM_API_KEY
+        sync: false
+      - key: CALCOM_WEBHOOK_SECRET
+        sync: false
+
+      # Langfuse observability
+      - key: LANGFUSE_PUBLIC_KEY
+        sync: false
+      - key: LANGFUSE_SECRET_KEY
+        sync: false
+      - key: LANGFUSE_HOST
+        value: https://cloud.langfuse.com
+
+      # Staff sinks
+      - key: STAFF_SINK_EMAIL
+        value: challenge-sink@tenacious.internal
+      - key: STAFF_SINK_SMS
+        value: "+10000000000"
