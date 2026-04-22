@@ -18,8 +18,9 @@ venv/
 Thumbs.db
 
 # Trace & eval artifacts that are regenerated per run
-eval/traces/email_sink.jsonl
-eval/traces/sms_sink.jsonl
+# NOTE: email_sink, sms_sink, and competitor_gap_brief are committed for interim submission
+# eval/traces/email_sink.jsonl
+# eval/traces/sms_sink.jsonl
 eval/traces/hubspot_mock.json
 eval/traces/calcom_mock.json
 eval/traces/inbox.jsonl
