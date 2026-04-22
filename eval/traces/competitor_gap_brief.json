@@ -1,0 +1,278 @@
+{
+  "generated_at": 1776863379.8498244,
+  "generated_at_iso": "2026-04-22T21:00:00Z",
+  "note": "Competitor gap briefs for all 5 synthetic test prospects.",
+  "briefs": {
+    "cb_sample_001": {
+      "crunchbase_id": "cb_sample_001",
+      "sector": "fintech",
+      "target": {
+        "score": 1,
+        "confidence": 0.8
+      },
+      "peer_count": 3,
+      "sector_mean_score": 2,
+      "top_quartile_threshold": 3,
+      "target_percentile": 0.33,
+      "gap_practices": [
+        {
+          "practice": "Named AI/ML leadership on the public team page (weight=high)",
+          "peer_count": 2
+        },
+        {
+          "practice": "AI-adjacent roles are 25% of engineering openings (weight=high)",
+          "peer_count": 1
+        },
+        {
+          "practice": "Public GitHub org activity: medium (weight=medium)",
+          "peer_count": 1
+        }
+      ],
+      "top_quartile_peers": [
+        {
+          "crunchbase_id": "cb_peer_f01",
+          "company_name": "Vantage Pay",
+          "score": 3,
+          "justifications": [
+            "AI-adjacent roles are 25% of engineering openings (weight=high)",
+            "Named AI/ML leadership on the public team page (weight=high)",
+            "Public GitHub org activity: medium (weight=medium)",
+            "2 executive posts/talks in the last 12 months naming AI (weight=medium)",
+            "Modern data/ML stack signal: dbt, Snowflake, Weights & Biases (weight=low)"
+          ]
+        },
+        {
+          "crunchbase_id": "cb_peer_f03",
+          "company_name": "Mosaic Banking Tech",
+          "score": 3,
+          "justifications": [
+            "AI-adjacent roles are 21% of engineering openings (weight=high)",
+            "Named AI/ML leadership on the public team page (weight=high)",
+            "Public GitHub org activity: high (weight=medium)",
+            "4 executive posts/talks in the last 12 months naming AI (weight=medium)",
+            "Modern data/ML stack signal: dbt, Databricks, Weights & Biases (weight=low)",
+            "Public build signal: blog: real-time fraud scoring with streaming ML, Jan 2026"
+          ]
+        }
+      ],
+      "caveats": [
+        "Scores are public-signal estimates. Quiet-but-sophisticated companies score low.",
+        "Top-quartile practice may not be a bad thing to not-do; assess context."
+      ]
+    },
+    "cb_sample_017": {
+      "crunchbase_id": "cb_sample_017",
+      "sector": "ecommerce",
+      "target": {
+        "score": 1,
+        "confidence": 0.4
+      },
+      "peer_count": 2,
+      "sector_mean_score": 3,
+      "top_quartile_threshold": 3,
+      "target_percentile": 0.0,
+      "gap_practices": [
+        {
+          "practice": "Named AI/ML leadership on the public team page (weight=high)",
+          "peer_count": 2
+        },
+        {
+          "practice": "AI-adjacent roles are 14% of engineering openings (weight=high)",
+          "peer_count": 1
+        },
+        {
+          "practice": "Public GitHub org activity: medium (weight=medium)",
+          "peer_count": 1
+        }
+      ],
+      "top_quartile_peers": [
+        {
+          "crunchbase_id": "cb_peer_e01",
+          "company_name": "ShopStream",
+          "score": 3,
+          "justifications": [
+            "AI-adjacent roles are 14% of engineering openings (weight=high)",
+            "Named AI/ML leadership on the public team page (weight=high)",
+            "Public GitHub org activity: medium (weight=medium)",
+            "2 executive posts/talks in the last 12 months naming AI (weight=medium)",
+            "Modern data/ML stack signal: dbt, Snowflake (weight=low)"
+          ]
+        },
+        {
+          "crunchbase_id": "cb_peer_e02",
+          "company_name": "Basket.io",
+          "score": 3,
+          "justifications": [
+            "AI-adjacent roles are 20% of engineering openings (weight=high)",
+            "Named AI/ML leadership on the public team page (weight=high)",
+            "Public GitHub org activity: high (weight=medium)",
+            "3 executive posts/talks in the last 12 months naming AI (weight=medium)",
+            "Modern data/ML stack signal: Databricks, Ray, dbt (weight=low)",
+            "Public build signal: blog: personalization engine for 10M SKUs, Feb 2026"
+          ]
+        }
+      ],
+      "caveats": [
+        "Scores are public-signal estimates. Quiet-but-sophisticated companies score low.",
+        "Top-quartile practice may not be a bad thing to not-do; assess context."
+      ]
+    },
+    "cb_sample_042": {
+      "crunchbase_id": "cb_sample_042",
+      "sector": "healthtech",
+      "target": {
+        "score": 3,
+        "confidence": 1.0
+      },
+      "peer_count": 2,
+      "sector_mean_score": 2.5,
+      "top_quartile_threshold": 3,
+      "target_percentile": 0.5,
+      "gap_practices": [
+        {
+          "practice": "AI-adjacent roles are 37% of engineering openings (weight=high)",
+          "peer_count": 1
+        },
+        {
+          "practice": "4 executive posts/talks in the last 12 months naming AI (weight=medium)",
+          "peer_count": 1
+        },
+        {
+          "practice": "Modern data/ML stack signal: dbt, Weights & Biases, Databricks (weight=low)",
+          "peer_count": 1
+        }
+      ],
+      "top_quartile_peers": [
+        {
+          "crunchbase_id": "cb_peer_h01",
+          "company_name": "MedRoute AI",
+          "score": 3,
+          "justifications": [
+            "AI-adjacent roles are 37% of engineering openings (weight=high)",
+            "Named AI/ML leadership on the public team page (weight=high)",
+            "Public GitHub org activity: medium (weight=medium)",
+            "4 executive posts/talks in the last 12 months naming AI (weight=medium)",
+            "Modern data/ML stack signal: dbt, Weights & Biases, Databricks (weight=low)"
+          ]
+        }
+      ],
+      "caveats": [
+        "Scores are public-signal estimates. Quiet-but-sophisticated companies score low.",
+        "Top-quartile practice may not be a bad thing to not-do; assess context."
+      ]
+    },
+    "cb_sample_089": {
+      "crunchbase_id": "cb_sample_089",
+      "sector": "ml-infra",
+      "target": {
+        "score": 3,
+        "confidence": 1.0
+      },
+      "peer_count": 2,
+      "sector_mean_score": 3,
+      "top_quartile_threshold": 3,
+      "target_percentile": 0.0,
+      "gap_practices": [
+        {
+          "practice": "AI-adjacent roles are 50% of engineering openings (weight=high)",
+          "peer_count": 1
+        },
+        {
+          "practice": "Modern data/ML stack signal: Ray, vLLM, Weights & Biases (weight=low)",
+          "peer_count": 1
+        },
+        {
+          "practice": "Public build signal: blog: inference cost reduction at scale, Dec 2025",
+          "peer_count": 1
+        }
+      ],
+      "top_quartile_peers": [
+        {
+          "crunchbase_id": "cb_peer_m01",
+          "company_name": "Synapse ML",
+          "score": 3,
+          "justifications": [
+            "AI-adjacent roles are 50% of engineering openings (weight=high)",
+            "Named AI/ML leadership on the public team page (weight=high)",
+            "Public GitHub org activity: high (weight=medium)",
+            "5 executive posts/talks in the last 12 months naming AI (weight=medium)",
+            "Modern data/ML stack signal: Ray, vLLM, Weights & Biases (weight=low)",
+            "Public build signal: blog: inference cost reduction at scale, Dec 2025"
+          ]
+        },
+        {
+          "crunchbase_id": "cb_peer_m02",
+          "company_name": "Lattice Inference",
+          "score": 3,
+          "justifications": [
+            "AI-adjacent roles are 60% of engineering openings (weight=high)",
+            "Public GitHub org activity: medium (weight=medium)",
+            "2 executive posts/talks in the last 12 months naming AI (weight=medium)",
+            "Modern data/ML stack signal: vLLM, Databricks (weight=low)"
+          ]
+        }
+      ],
+      "caveats": [
+        "Scores are public-signal estimates. Quiet-but-sophisticated companies score low.",
+        "Top-quartile practice may not be a bad thing to not-do; assess context."
+      ]
+    },
+    "cb_sample_113": {
+      "crunchbase_id": "cb_sample_113",
+      "sector": "logistics-saas",
+      "target": {
+        "score": 0,
+        "confidence": 0.2
+      },
+      "peer_count": 2,
+      "sector_mean_score": 3,
+      "top_quartile_threshold": 3,
+      "target_percentile": 0.0,
+      "gap_practices": [
+        {
+          "practice": "Named AI/ML leadership on the public team page (weight=high)",
+          "peer_count": 2
+        },
+        {
+          "practice": "AI-adjacent roles are 20% of engineering openings (weight=high)",
+          "peer_count": 1
+        },
+        {
+          "practice": "Public GitHub org activity: medium (weight=medium)",
+          "peer_count": 1
+        }
+      ],
+      "top_quartile_peers": [
+        {
+          "crunchbase_id": "cb_peer_l01",
+          "company_name": "FlowFreight",
+          "score": 3,
+          "justifications": [
+            "AI-adjacent roles are 20% of engineering openings (weight=high)",
+            "Named AI/ML leadership on the public team page (weight=high)",
+            "Public GitHub org activity: medium (weight=medium)",
+            "2 executive posts/talks in the last 12 months naming AI (weight=medium)",
+            "Modern data/ML stack signal: dbt, Snowflake (weight=low)"
+          ]
+        },
+        {
+          "crunchbase_id": "cb_peer_l02",
+          "company_name": "RouteIQ",
+          "score": 3,
+          "justifications": [
+            "AI-adjacent roles are 25% of engineering openings (weight=high)",
+            "Named AI/ML leadership on the public team page (weight=high)",
+            "Public GitHub org activity: high (weight=medium)",
+            "3 executive posts/talks in the last 12 months naming AI (weight=medium)",
+            "Modern data/ML stack signal: Databricks, Ray, dbt (weight=low)",
+            "Public build signal: blog: route optimization with reinforcement learning, Mar 2026"
+          ]
+        }
+      ],
+      "caveats": [
+        "Scores are public-signal estimates. Quiet-but-sophisticated companies score low.",
+        "Top-quartile practice may not be a bad thing to not-do; assess context."
+      ]
+    }
+  }
+}
