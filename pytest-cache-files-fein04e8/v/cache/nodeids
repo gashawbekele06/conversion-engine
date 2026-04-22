@@ -1,9 +1,0 @@
-[
-  "tests/test_smoke.py::test_end_to_end_orchestrator_run_one",
-  "tests/test_smoke.py::test_enrichment_pipeline_runs",
-  "tests/test_smoke.py::test_kill_switch_default_routes_to_sink",
-  "tests/test_smoke.py::test_layoff_company_is_segment_2",
-  "tests/test_smoke.py::test_segment_4_gated_by_ai_maturity",
-  "tests/test_smoke.py::test_segment_priority_leadership_beats_funded",
-  "tests/test_smoke.py::test_trace_log_is_written"
-]
