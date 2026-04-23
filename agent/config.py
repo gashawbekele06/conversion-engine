@@ -37,6 +37,7 @@ class Config:
     at_username: str = field(default_factory=lambda: os.getenv("AT_USERNAME", "sandbox"))
     hubspot_token: str = field(default_factory=lambda: os.getenv("HUBSPOT_TOKEN", ""))
     calcom_api_key: str = field(default_factory=lambda: os.getenv("CALCOM_API_KEY", ""))
+    calcom_event_type_id: str = field(default_factory=lambda: os.getenv("CALCOM_EVENT_TYPE_ID", ""))
     langfuse_public_key: str = field(default_factory=lambda: os.getenv("LANGFUSE_PUBLIC_KEY", ""))
     langfuse_secret_key: str = field(default_factory=lambda: os.getenv("LANGFUSE_SECRET_KEY", ""))
     langfuse_host: str = field(default_factory=lambda: os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"))

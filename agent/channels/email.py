@@ -79,8 +79,10 @@ class EmailChannel:
                 if provider == "resend":
                     import resend  # type: ignore
                     resend.api_key = self.config.resend_api_key
+                    # Use Resend's verified test sender when routing to sink/unverified domains
+                    from_addr = "Tenacious <onboarding@resend.dev>"
                     resp = resend.Emails.send(
-                        {"from": "outbound@tenacious.example", "to": [route.to],
+                        {"from": from_addr, "to": [route.to],
                          "subject": subject, "html": body}
                     )
                     mid = str(resp.get("id"))

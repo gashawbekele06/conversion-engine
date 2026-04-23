@@ -12,6 +12,13 @@ import json
 import sys
 from pathlib import Path
 
+# Load .env before any config/channel imports so os.getenv picks up all keys
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+except ImportError:
+    pass
+
 from .enrichment import build_competitor_gap_brief, build_hiring_signal_brief
 from .orchestrator import Orchestrator, load_synthetic_prospects
 

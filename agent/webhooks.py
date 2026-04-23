@@ -54,12 +54,26 @@ def _verify_hubspot_signature(body: bytes, signature_header: str | None) -> bool
 def build_app():  # pragma: no cover — smoke-tested separately
     from fastapi import FastAPI, HTTPException, Request
 
-    app = FastAPI(title="Tenacious Conversion Engine webhooks")
+    app = FastAPI(title="Tenacious Conversion Engine webhooks", docs_url=None, redoc_url=None)
 
     sms_channel = SMSChannel()
     hubspot_channel = HubSpotChannel()
     inbox_path = Path(__file__).resolve().parents[1] / "eval" / "traces" / "inbox.jsonl"
     inbox_path.parent.mkdir(parents=True, exist_ok=True)
+
+    @app.get("/")
+    async def root() -> dict[str, Any]:
+        return {
+            "service": "Tenacious Conversion Engine",
+            "status": "running",
+            "endpoints": {
+                "health":   "GET  /healthz",
+                "email":    "POST /webhooks/email",
+                "sms":      "POST /webhooks/sms",
+                "calcom":   "POST /webhooks/calcom",
+                "hubspot":  "POST /webhooks/hubspot",
+            },
+        }
 
     @app.get("/healthz")
     async def healthz() -> dict[str, Any]:  # noqa: D401

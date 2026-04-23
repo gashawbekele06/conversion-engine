@@ -7,7 +7,7 @@ venv/
 .env
 .env.*
 !.env.example
-
+.pytest_cache
 # Editor
 .vscode/
 .idea/
@@ -37,3 +37,23 @@ dist/
 
 # τ²-Bench submodule build artifacts
 tau2-bench/__pycache__/
+
+# Seed data — licensed materials, not for public redistribution (LICENSE.md)
+data/seed/pricing_sheet.md
+data/seed/pricing.json
+data/seed/case_studies.md
+data/seed/baseline_numbers.md
+data/seed/sales_deck.pptx
+data/seed/sales_deck_notes.md
+data/seed/discovery_transcripts/
+data/seed/email_sequences/
+data/seed/email_sequences.md
+data/seed/style_guide.md
+data/seed/icp_definition.md
+data/seed/bench_summary.json
+data/seed/sample_hiring_signal_brief.json
+data/seed/sample_competitor_gap_brief.json
+data/seed/discovery_call_context_brief.md
+
+# Synthetic prospect data (PII-adjacent, regenerated from seed)
+data/synthetic_prospects.json
