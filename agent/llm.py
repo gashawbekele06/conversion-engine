@@ -105,7 +105,15 @@ class LLM:
     def _call_anthropic(self, *, system: str, user: str, temperature: float,
                         max_tokens: int) -> LLMResponse:
         import anthropic  # type: ignore
-        client = anthropic.Anthropic(api_key=self.config.anthropic_api_key)
+        key = self.config.anthropic_api_key
+        # OpenRouter keys (sk-or-v1-...) require a different base URL
+        if key.startswith("sk-or-"):
+            client = anthropic.Anthropic(
+                api_key=key,
+                base_url="https://openrouter.ai/api/v1",
+            )
+        else:
+            client = anthropic.Anthropic(api_key=key)
         message = client.messages.create(
             model=self.config.llm_model,
             max_tokens=max_tokens,
