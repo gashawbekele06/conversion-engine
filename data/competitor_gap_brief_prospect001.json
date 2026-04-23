@@ -1,0 +1,57 @@
+{
+  "crunchbase_id": "cb_sample_001",
+  "sector": "fintech",
+  "target": {
+    "score": 1,
+    "confidence": 0.8
+  },
+  "peer_count": 3,
+  "sector_mean_score": 2,
+  "top_quartile_threshold": 3,
+  "target_percentile": 0.33,
+  "gap_practices": [
+    {
+      "practice": "Named AI/ML leadership on the public team page (weight=high)",
+      "peer_count": 2
+    },
+    {
+      "practice": "AI-adjacent roles are 25% of engineering openings (weight=high)",
+      "peer_count": 1
+    },
+    {
+      "practice": "Public GitHub org activity: medium (weight=medium)",
+      "peer_count": 1
+    }
+  ],
+  "top_quartile_peers": [
+    {
+      "crunchbase_id": "cb_peer_f01",
+      "company_name": "Vantage Pay",
+      "score": 3,
+      "justifications": [
+        "AI-adjacent roles are 25% of engineering openings (weight=high)",
+        "Named AI/ML leadership on the public team page (weight=high)",
+        "Public GitHub org activity: medium (weight=medium)",
+        "2 executive posts/talks in the last 12 months naming AI (weight=medium)",
+        "Modern data/ML stack signal: dbt, Snowflake, Weights & Biases (weight=low)"
+      ]
+    },
+    {
+      "crunchbase_id": "cb_peer_f03",
+      "company_name": "Mosaic Banking Tech",
+      "score": 3,
+      "justifications": [
+        "AI-adjacent roles are 21% of engineering openings (weight=high)",
+        "Named AI/ML leadership on the public team page (weight=high)",
+        "Public GitHub org activity: high (weight=medium)",
+        "4 executive posts/talks in the last 12 months naming AI (weight=medium)",
+        "Modern data/ML stack signal: dbt, Databricks, Weights & Biases (weight=low)",
+        "Public build signal: blog: real-time fraud scoring with streaming ML, Jan 2026"
+      ]
+    }
+  ],
+  "caveats": [
+    "Scores are public-signal estimates. Quiet-but-sophisticated companies score low.",
+    "Top-quartile practice may not be a bad thing to not-do; assess context."
+  ]
+}

@@ -324,6 +324,44 @@
       "latency_ms_p50": 4264.8022174835205,
       "latency_ms_p95": 7305.7262897491455,
       "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 each task evaluated by keyword-grounded response check. Replaces Bernoulli simulation with actual model output."
+    },
+    {
+      "run_id": "run_140a8c18",
+      "run_label": "real_run",
+      "ts": 1776965650.6135945,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "dev",
+      "trials": 1,
+      "tasks": 30,
+      "pass_rates": [
+        0.9333333333333333
+      ],
+      "pass_rate_mean": 0.9333333333333333,
+      "pass_rate_ci95_low": null,
+      "pass_rate_ci95_high": null,
+      "cost_usd_total": 0.040853999999999994,
+      "latency_ms_p50": 4166.023969650269,
+      "latency_ms_p95": 6995.227336883545,
+      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 each task evaluated by keyword-grounded response check. Replaces Bernoulli simulation with actual model output."
+    },
+    {
+      "run_id": "run_a12f55d4",
+      "run_label": "real_run",
+      "ts": 1776965790.2983096,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "held_out",
+      "trials": 1,
+      "tasks": 20,
+      "pass_rates": [
+        1.0
+      ],
+      "pass_rate_mean": 1.0,
+      "pass_rate_ci95_low": null,
+      "pass_rate_ci95_high": null,
+      "cost_usd_total": 0.02289,
+      "latency_ms_p50": 4251.810073852539,
+      "latency_ms_p95": 6760.342597961426,
+      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 each task evaluated by keyword-grounded response check. Replaces Bernoulli simulation with actual model output."
     }
   ]
 }
