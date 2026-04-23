@@ -98,7 +98,7 @@ This is the substrate for:
 | layoffs.fyi | Synthetic fixture (120d window) | `agent/enrichment/layoffs.py` |
 | LLM compose | OpenRouter claude-sonnet-4-6 (eval tier) | `eval/score_log.json run_140a8c18` |
 | Email send | **Resend live verified** | message_id: `001cdf69-13fa-498c-bcc8-470b8a444d15` |
-| SMS send | Africa's Talking SDK installed; sandbox SSL blocked | `agent/channels/sms.py` |
+| SMS send | AT sandbox broken (port 443 plain HTTP; port 80 returns 400 pre-parse) | `agent/channels/sms.py` |
 | HubSpot upsert | HubSpot Developer Sandbox | `eval/traces/hubspot_mock.json` (97 KB) |
 | Cal.com booking | Cal.com production API | `eval/traces/calcom_mock.json` (40 KB) |
 | tau2-Bench run | **Real LLM run completed** | `run_140a8c18` dev=0.933, `run_a12f55d4` held_out=1.000 |

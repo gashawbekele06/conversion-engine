@@ -147,10 +147,12 @@ class SMSChannel:
                 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
                 is_sandbox = self.config.at_username == "sandbox"
-                # api.sandbox.africastalking.com:443 serves plain HTTP (not TLS).
-                # Port 80 redirects to 443 then fails on the TLS handshake.
-                # This is an AT infrastructure issue; we use HTTP on port 80
-                # with allow_redirects=False so the request never reaches 443.
+                # AT sandbox infrastructure is broken as of 2026-04-23:
+                #   - port 443: server sends plain HTTP during TLS handshake → record layer failure
+                #   - port 80: bare 400 Bad Request returned before request headers are read
+                # Both behaviors confirmed via raw TCP, curl (SChannel), and Python ssl module.
+                # HTTP on port 80 with allow_redirects=False is kept as the sandbox path so that
+                # when AT fixes their infrastructure, a 2xx will pass through correctly.
                 # Production uses HTTPS as normal.
                 if is_sandbox:
                     base = "http://api.sandbox.africastalking.com"

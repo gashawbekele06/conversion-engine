@@ -14,7 +14,12 @@
 **Act II — Production Stack**
 - Email (Resend): live delivery verified — message_id: `001cdf69-13fa-498c-bcc8-470b8a444d15`
   - Delivered to staff sink (gashawbekelek@gmail.com); kill-switch confirmed
-- SMS (Africa's Talking): SDK installed (africastalking-2.0.2); sandbox SSL blocked by network proxy
+- SMS (Africa's Talking): SDK installed (africastalking-2.0.2); AT sandbox infrastructure broken
+  - Root cause: `api.sandbox.africastalking.com:443` serves plain HTTP (no TLS); all plain HTTP
+    requests on ports 80 and 443 return bare `400 Bad Request` before reading request headers —
+    confirmed via raw TCP, curl (Windows SChannel), and Python ssl module; not network/WARP related
+  - Code path is correct: warm-lead gate (`WarmLeadRequired`), kill-switch routing, and mock-sink
+    fallback all verified; 7/7 smoke tests pass
   - Warm-lead gate enforced in code (`WarmLeadRequired` exception)
 - HubSpot Developer Sandbox: upsert + engagement log confirmed in `eval/traces/hubspot_mock.json`
 - Cal.com: slot offer + booking flow confirmed in `eval/traces/calcom_mock.json`
