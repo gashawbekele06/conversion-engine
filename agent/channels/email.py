@@ -106,9 +106,26 @@ class EmailChannel:
                     message_id=mid, latency_ms=(time.time() - start) * 1000.0,
                 )
             except Exception as exc:  # noqa: BLE001
+                # On provider failure (rate limit, auth, network) fall back to
+                # mock sink so the pipeline always produces a traceable message ID.
+                attrs["provider_error"] = str(exc)
+                message_id = f"mock_{int(start*1000)}"
+                self._write_sink(
+                    {
+                        "provider": f"{provider}_fallback",
+                        "to": route.to,
+                        "subject": subject,
+                        "body": body,
+                        "metadata": metadata or {},
+                        "is_sink": route.is_sink,
+                        "error": str(exc),
+                        "ts": start,
+                    }
+                )
                 return EmailSendResult(
                     ok=False, provider=provider, to=route.to, is_sink=route.is_sink,
-                    message_id="", latency_ms=(time.time() - start) * 1000.0, error=str(exc),
+                    message_id=message_id, latency_ms=(time.time() - start) * 1000.0,
+                    error=str(exc),
                 )
 
     def _pick_provider(self) -> str:

@@ -23,6 +23,14 @@ import time
 from pathlib import Path
 from typing import Any
 
+# Request must be in module scope so FastAPI can resolve the type annotation
+# even when `from __future__ import annotations` is active.
+try:
+    from fastapi import HTTPException, Request
+except ImportError:  # FastAPI not installed — webhooks unused in this env
+    Request = None  # type: ignore
+    HTTPException = None  # type: ignore
+
 from .channels.hubspot import HubSpotChannel
 from .channels.sms import SMSChannel
 from .config import load_config
@@ -76,7 +84,7 @@ def _verify_hubspot_signature(body: bytes, signature_header: str | None) -> bool
 
 
 def build_app():  # pragma: no cover — smoke-tested separately
-    from fastapi import FastAPI, HTTPException, Request
+    from fastapi import FastAPI
 
     app = FastAPI(title="Tenacious Conversion Engine webhooks", docs_url=None, redoc_url=None)
 
