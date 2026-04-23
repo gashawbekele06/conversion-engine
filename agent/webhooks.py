@@ -84,12 +84,43 @@ def build_app():  # pragma: no cover — smoke-tested separately
     # ------------------------------------------------------------------ email
     @app.post("/webhooks/email")
     async def email_webhook(request: Request) -> dict[str, Any]:
-        payload = await request.json()
+        try:
+            payload = await request.json()
+        except Exception:
+            raise HTTPException(status_code=422, detail="malformed JSON payload")
+
+        from_addr = payload.get("from") or payload.get("sender")
+        subject = payload.get("subject", "")
+        if not from_addr:
+            raise HTTPException(status_code=422, detail="missing required field: from")
+
         tracer = get_tracer()
-        with tracer.trace("webhook.email", subject=payload.get("subject")) as attrs:
-            _append(inbox_path, {"channel": "email", "ts": time.time(), "payload": payload})
-            attrs["from"] = payload.get("from")
-            return {"ok": True}
+        with tracer.trace("webhook.email", subject=subject) as attrs:
+            attrs["from"] = from_addr
+
+            # Classify inbound reply for downstream routing
+            body_text = (payload.get("text") or payload.get("html") or "").lower()
+            if any(w in body_text for w in ("unsubscribe", "opt out", "opt-out", "remove me", "stop emailing")):
+                kind = "unsubscribe"
+            elif any(w in body_text for w in ("interested", "tell me more", "yes", "sure", "sounds good", "let's talk")):
+                kind = "reply_positive"
+            elif any(w in body_text for w in ("not interested", "no thanks", "not right now", "pass")):
+                kind = "reply_negative"
+            elif "bounce" in (payload.get("type") or "").lower() or payload.get("bounce"):
+                kind = "bounce"
+            else:
+                kind = "reply_other"
+
+            attrs["kind"] = kind
+            _append(inbox_path, {
+                "channel": "email",
+                "ts": time.time(),
+                "from": from_addr,
+                "subject": subject,
+                "kind": kind,
+                "payload": payload,
+            })
+            return {"ok": True, "kind": kind}
 
     # -------------------------------------------------------------------- sms
     @app.post("/webhooks/sms")
