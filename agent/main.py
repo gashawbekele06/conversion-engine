@@ -64,7 +64,15 @@ def _cmd_serve(args: argparse.Namespace) -> int:  # pragma: no cover
 
 
 def _cmd_dry_run(args: argparse.Namespace) -> int:
-    """Run all prospects through the pipeline with kill-switch engaged (sink only)."""
+    """Run all prospects through the pipeline with kill-switch engaged (sink only).
+
+    Clears LLM API keys so the deterministic fallback template is used —
+    no API credits consumed, each prospect completes in under 1 s.
+    """
+    import os
+    os.environ.pop("OPENROUTER_API_KEY", None)
+    os.environ.pop("ANTHROPIC_API_KEY", None)
+    os.environ["LLM_TIER"] = "dev"  # fallback path, no Anthropic SDK
     orch = Orchestrator()
     results = orch.run_all(load_synthetic_prospects())
     for r in results:

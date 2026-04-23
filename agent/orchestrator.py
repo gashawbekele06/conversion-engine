@@ -199,4 +199,6 @@ class Orchestrator:
 def load_synthetic_prospects() -> list[dict[str, Any]]:
     cfg = load_config()
     path = cfg.seed_dir.parent / "synthetic_prospects.json"
-    return json.loads(Path(path).read_text(encoding="utf-8"))["prospects"]
+    all_records = json.loads(Path(path).read_text(encoding="utf-8"))["prospects"]
+    # Peers are reference data for the competitor gap brief, not outbound targets.
+    return [p for p in all_records if p["id"].startswith("prospect_")]
