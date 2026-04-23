@@ -54,7 +54,7 @@ def _verify_hubspot_signature(body: bytes, signature_header: str | None) -> bool
 def build_app():  # pragma: no cover — smoke-tested separately
     from fastapi import FastAPI, HTTPException, Request
 
-    app = FastAPI(title="Tenacious Conversion Engine webhooks")
+    app = FastAPI(title="Tenacious Conversion Engine webhooks", docs_url=None, redoc_url=None)
 
     sms_channel = SMSChannel()
     hubspot_channel = HubSpotChannel()
