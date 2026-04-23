@@ -160,6 +160,29 @@
       "latency_ms_p50": 4872.121095657349,
       "latency_ms_p95": 10952.723264694214,
       "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 each task evaluated by keyword-grounded response check. Replaces Bernoulli simulation with actual model output."
+    },
+    {
+      "run_id": "run_a41b3a8f",
+      "run_label": "real_run",
+      "ts": 1776932861.8604317,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "held_out",
+      "trials": 5,
+      "tasks": 20,
+      "pass_rates": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "pass_rate_mean": 1.0,
+      "pass_rate_ci95_low": 1.0,
+      "pass_rate_ci95_high": 1.0,
+      "cost_usd_total": 0.11561999999999997,
+      "latency_ms_p50": 4668.43056678772,
+      "latency_ms_p95": 8580.782175064087,
+      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 each task evaluated by keyword-grounded response check. Replaces Bernoulli simulation with actual model output."
     }
   ]
 }
