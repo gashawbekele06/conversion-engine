@@ -1,43 +1,148 @@
 {
-  "as_of": "2026-04-20",
-  "refresh_cadence": "weekly_monday_0900_UTC",
-  "note": "Counts reflect engineers between engagements. The agent MUST NOT promise capacity beyond these counts.",
-  "capabilities": {
-    "python_backend": {
+  "as_of": "2026-04-21",
+  "notes": "Updated weekly each Monday at 09:00 UTC. The agent must reference actual counts, never hallucinate capacity. If a stack shows 0 available engineers, the agent may not pitch a Segment 1 or Segment 4 engagement that requires that stack. Bench-to-brief match is gated on these counts.",
+  "stacks": {
+    "python": {
       "available_engineers": 7,
-      "seniority_mix": { "senior": 3, "mid": 3, "junior": 1 },
-      "notes": "FastAPI, Django, Postgres heavy. Two with LLM-app experience."
+      "seniority_mix": {
+        "junior_0_2_yrs": 3,
+        "mid_2_4_yrs": 3,
+        "senior_4_plus_yrs": 1
+      },
+      "skill_subsets": [
+        "Django",
+        "FastAPI",
+        "Flask",
+        "SQLAlchemy",
+        "Celery",
+        "Pytest",
+        "async / asyncio"
+      ],
+      "utilization_target_pct": 75,
+      "time_to_deploy_days": 7
     },
-    "python_data": {
-      "available_engineers": 4,
-      "seniority_mix": { "senior": 2, "mid": 2, "junior": 0 },
-      "notes": "Airflow, dbt, Snowflake, Databricks. One with Ray."
-    },
-    "ml_platform": {
-      "available_engineers": 2,
-      "seniority_mix": { "senior": 2, "mid": 0, "junior": 0 },
-      "notes": "MLflow, Weights & Biases, model-serving. Constrained — gate Segment 4 pitches on this."
-    },
-    "golang_infra": {
+    "go": {
       "available_engineers": 3,
-      "seniority_mix": { "senior": 1, "mid": 2, "junior": 0 },
-      "notes": "Kubernetes, gRPC, service mesh."
+      "seniority_mix": {
+        "junior_0_2_yrs": 1,
+        "mid_2_4_yrs": 1,
+        "senior_4_plus_yrs": 1
+      },
+      "skill_subsets": [
+        "Microservices",
+        "gRPC",
+        "Concurrency / goroutines",
+        "Kafka consumers",
+        "Infrastructure tooling"
+      ],
+      "utilization_target_pct": 60,
+      "time_to_deploy_days": 14
     },
-    "frontend_react": {
+    "data": {
+      "available_engineers": 9,
+      "seniority_mix": {
+        "junior_0_2_yrs": 4,
+        "mid_2_4_yrs": 4,
+        "senior_4_plus_yrs": 1
+      },
+      "skill_subsets": [
+        "dbt",
+        "Snowflake",
+        "Databricks",
+        "Airflow",
+        "Fivetran",
+        "Data modeling",
+        "PowerBI",
+        "QuickSight",
+        "dbt tests and contracts"
+      ],
+      "utilization_target_pct": 80,
+      "time_to_deploy_days": 7
+    },
+    "ml": {
       "available_engineers": 5,
-      "seniority_mix": { "senior": 1, "mid": 3, "junior": 1 },
-      "notes": "React + Next.js. Limited native mobile."
+      "seniority_mix": {
+        "junior_0_2_yrs": 2,
+        "mid_2_4_yrs": 2,
+        "senior_4_plus_yrs": 1
+      },
+      "skill_subsets": [
+        "LangChain / LangGraph",
+        "LLM fine-tuning (LoRA / QLoRA)",
+        "Retrieval-Augmented Generation",
+        "Agentic systems (multi-tool orchestration)",
+        "PyTorch",
+        "Hugging Face",
+        "Prompt engineering and evals",
+        "MLOps (MLflow, Weights and Biases)"
+      ],
+      "utilization_target_pct": 50,
+      "time_to_deploy_days": 10
     },
-    "agentic_systems": {
-      "available_engineers": 1,
-      "seniority_mix": { "senior": 1, "mid": 0, "junior": 0 },
-      "notes": "Single engineer; treat as proof-of-concept capacity only."
+    "infra": {
+      "available_engineers": 4,
+      "seniority_mix": {
+        "junior_0_2_yrs": 1,
+        "mid_2_4_yrs": 2,
+        "senior_4_plus_yrs": 1
+      },
+      "skill_subsets": [
+        "Terraform",
+        "AWS (EKS, Lambda, RDS, VPC)",
+        "GCP (GKE, Cloud Run)",
+        "Kubernetes",
+        "Docker / Docker Compose",
+        "CI/CD (GitHub Actions, GitLab CI)",
+        "Observability (Datadog, Grafana)"
+      ],
+      "utilization_target_pct": 70,
+      "time_to_deploy_days": 14
+    },
+    "frontend": {
+      "available_engineers": 6,
+      "seniority_mix": {
+        "junior_0_2_yrs": 3,
+        "mid_2_4_yrs": 2,
+        "senior_4_plus_yrs": 1
+      },
+      "skill_subsets": [
+        "React",
+        "Next.js",
+        "TypeScript",
+        "Tailwind",
+        "shadcn/ui",
+        "Component testing (Vitest, Playwright)"
+      ],
+      "utilization_target_pct": 70,
+      "time_to_deploy_days": 7
+    },
+    "fullstack_nestjs": {
+      "available_engineers": 2,
+      "seniority_mix": {
+        "junior_0_2_yrs": 0,
+        "mid_2_4_yrs": 2,
+        "senior_4_plus_yrs": 0
+      },
+      "skill_subsets": [
+        "NestJS",
+        "Node.js",
+        "Postgres",
+        "Prisma / TypeORM",
+        "React integration"
+      ],
+      "utilization_target_pct": 75,
+      "time_to_deploy_days": 14,
+      "note": "Currently committed on the Modo Compass engagement through Q3 2026. Limited availability."
     }
   },
-  "hard_constraints": {
-    "max_simultaneous_starts_per_week": 3,
-    "earliest_start_date_days_out": 14,
-    "geos_blocked": []
+  "leadership": {
+    "fractional_architects_available": 2,
+    "fractional_delivery_managers_available": 2,
+    "fractional_cto_available": 1,
+    "note": "Fractional leadership is quoted at weekly rates per seed/pricing_sheet.md — e.g., $[WEEKLY_RATE]/week for a senior AI/data engineer fractional role with ~5 hrs/week of architect support."
   },
-  "escalation_rule": "If the prospect asks for staffing beyond the counts above OR a start date < 14 days, the agent must hand off to a human delivery lead rather than committing."
+  "total_engineers_on_bench": 36,
+  "total_engineers_on_paid_engagements": 26,
+  "time_to_deploy_note": "Time-to-deploy assumes standard onboarding — NDA, security policy acknowledgement, client laptop provisioning if required. Add 7 days for regulated-industry clients (healthcare, finance, federal) where background checks apply.",
+  "honesty_constraint": "If a prospect's stated need exceeds the available_engineers count for the required stack, the agent must either (a) propose a phased ramp with the available count and explicit capacity gate for the expansion, or (b) flag the mismatch in the context brief and route to a human. Committing to capacity the bench does not show is a policy violation and will be caught by the bench over-commitment probe."
 }
