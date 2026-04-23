@@ -29,6 +29,13 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+# Load .env before any agent imports so os.getenv picks up API keys
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+except ImportError:
+    pass
+
 import json
 import math
 import random
@@ -302,6 +309,7 @@ def _run_llm_backed(
                 passes += 1
 
             ts_end = time.time()
+            ts_end = time.time()
             row = TraceRow(
                 trace_id=run_trace_id,
                 span_id=f"sp_{uuid.uuid4().hex[:8]}",
@@ -318,6 +326,7 @@ def _run_llm_backed(
                     "model": run.model,
                     "llm_backed": True,
                 },
+                status="ok",
             )
             tracer._write(row)
 
@@ -335,7 +344,7 @@ def _run_llm_backed(
     return run
 
 
-
+def _run_simulation(
     *,
     run: RunResult,
     tasks: list[dict[str, Any]],
