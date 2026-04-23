@@ -61,6 +61,20 @@ def build_app():  # pragma: no cover — smoke-tested separately
     inbox_path = Path(__file__).resolve().parents[1] / "eval" / "traces" / "inbox.jsonl"
     inbox_path.parent.mkdir(parents=True, exist_ok=True)
 
+    @app.get("/")
+    async def root() -> dict[str, Any]:
+        return {
+            "service": "Tenacious Conversion Engine",
+            "status": "running",
+            "endpoints": {
+                "health":   "GET  /healthz",
+                "email":    "POST /webhooks/email",
+                "sms":      "POST /webhooks/sms",
+                "calcom":   "POST /webhooks/calcom",
+                "hubspot":  "POST /webhooks/hubspot",
+            },
+        }
+
     @app.get("/healthz")
     async def healthz() -> dict[str, Any]:  # noqa: D401
         cfg = load_config()
