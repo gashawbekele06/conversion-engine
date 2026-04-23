@@ -63,9 +63,23 @@ def _cmd_serve(args: argparse.Namespace) -> int:  # pragma: no cover
     return 0
 
 
+def _cmd_dry_run(args: argparse.Namespace) -> int:
+    """Run all prospects through the pipeline with kill-switch engaged (sink only)."""
+    orch = Orchestrator()
+    results = orch.run_all(load_synthetic_prospects())
+    for r in results:
+        print(json.dumps(r.__dict__, indent=2, default=str))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="agent")
-    sub = parser.add_subparsers(dest="cmd", required=True)
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run all prospects through the pipeline (kill-switch engaged, sink only).",
+    )
+    sub = parser.add_subparsers(dest="cmd", required=False)
 
     p_en = sub.add_parser("enrich")
     p_en.add_argument("crunchbase_id")
@@ -84,6 +98,11 @@ def main(argv: list[str] | None = None) -> int:
     p_se.set_defaults(func=_cmd_serve)
 
     args = parser.parse_args(argv)
+    if args.dry_run:
+        return _cmd_dry_run(args)
+    if not args.cmd:
+        parser.print_help()
+        return 1
     return args.func(args)
 
 
