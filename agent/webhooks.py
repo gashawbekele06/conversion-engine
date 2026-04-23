@@ -218,16 +218,16 @@ def build_app():  # pragma: no cover — smoke-tested separately
             }
             _append(inbox_path, row)
 
-            # Mirror booking state into HubSpot mock
+            # Booking-to-HubSpot linkage — authoritative integration point.
+            # Every BOOKING_CREATED event MUST update the HubSpot contact record.
+            # Failure here returns 500 so Cal.com can retry delivery rather than
+            # silently orphaning the booking without a CRM update.
             if prospect_email and event_type == "BOOKING_CREATED":
-                try:
-                    hubspot_channel.mark_meeting_booked(
-                        email=prospect_email,
-                        when_iso=when_iso,
-                        calcom_booking_id=booking_id,
-                    )
-                except Exception:  # noqa: BLE001
-                    pass  # HubSpot write is best-effort; don't fail the webhook
+                hubspot_channel.mark_meeting_booked(
+                    email=prospect_email,
+                    when_iso=when_iso,
+                    calcom_booking_id=booking_id,
+                )
 
             return {"ok": True, "event": event_type, "booking_id": booking_id}
 
