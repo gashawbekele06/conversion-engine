@@ -142,50 +142,37 @@ class SMSChannel:
                 )
 
             try:
-                import ssl as _ssl
-                import urllib3  # type: ignore
                 import requests as _req  # type: ignore
-                from requests.adapters import HTTPAdapter  # type: ignore
-                from urllib3.util.ssl_ import create_urllib3_context  # type: ignore
+                import urllib3  # type: ignore
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
                 is_sandbox = self.config.at_username == "sandbox"
-                base = (
-                    "https://api.sandbox.africastalking.com"
-                    if is_sandbox
-                    else "https://api.africastalking.com"
-                )
-                payload = {
-                    "username": self.config.at_username,
-                    "to": route.to,
-                    "message": body,
-                }
-                headers = {
-                    "apiKey": self.config.at_api_key,
-                    "Accept": "application/json",
-                    "Content-Type": "application/x-www-form-urlencoded",
-                }
+                # api.sandbox.africastalking.com:443 serves plain HTTP (not TLS).
+                # Port 80 redirects to 443 then fails on the TLS handshake.
+                # This is an AT infrastructure issue; we use HTTP on port 80
+                # with allow_redirects=False so the request never reaches 443.
+                # Production uses HTTPS as normal.
+                if is_sandbox:
+                    base = "http://api.sandbox.africastalking.com"
+                    extra = {"allow_redirects": False, "verify": False}
+                else:
+                    base = "https://api.africastalking.com"
+                    extra = {}
 
-                # Build a TLS-1.2 session to work around Windows TLS proxy
-                # that returns WRONG_VERSION_NUMBER on TLS-1.3 negotiation.
-                class _TLS12Adapter(HTTPAdapter):
-                    def init_poolmanager(self, *args, **kwargs):
-                        ctx = create_urllib3_context()
-                        ctx.minimum_version = _ssl.TLSVersion.TLSv1_2
-                        ctx.maximum_version = _ssl.TLSVersion.TLSv1_2
-                        ctx.check_hostname = False
-                        ctx.verify_mode = _ssl.CERT_NONE
-                        kwargs["ssl_context"] = ctx
-                        return super().init_poolmanager(*args, **kwargs)
-
-                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-                session = _req.Session()
-                session.mount("https://", _TLS12Adapter())
-                resp = session.post(
+                resp = _req.post(
                     f"{base}/version1/messaging",
-                    headers=headers,
-                    data=payload,
+                    headers={
+                        "apiKey": self.config.at_api_key,
+                        "Accept": "application/json",
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    data={
+                        "username": self.config.at_username,
+                        "to": route.to,
+                        "message": body,
+                    },
                     timeout=15,
-                    verify=False,
+                    **extra,
                 )
                 resp.raise_for_status()
                 data = resp.json()
