@@ -23,10 +23,42 @@ import time
 from pathlib import Path
 from typing import Any
 
+# Request must be in module scope so FastAPI can resolve the type annotation
+# even when `from __future__ import annotations` is active.
+try:
+    from fastapi import HTTPException, Request
+except ImportError:  # FastAPI not installed — webhooks unused in this env
+    Request = None  # type: ignore
+    HTTPException = None  # type: ignore
+
 from .channels.hubspot import HubSpotChannel
 from .channels.sms import SMSChannel
 from .config import load_config
 from .tracing import get_tracer
+
+
+# ---------------------------------------------------------------------------
+# Email reply integration surface.
+#
+# External logic registers handlers here — the webhook handler owns transport
+# (parsing, validation, classification) and dispatches to these callbacks.
+# Business logic lives in the handlers, not in the webhook itself.
+#
+# Usage:
+#   from agent.webhooks import register_email_reply_handler
+#   register_email_reply_handler(lambda kind, from_addr, subject, payload: ...)
+#
+# Supported kinds: reply_positive | reply_negative | unsubscribe | bounce | reply_other
+# ---------------------------------------------------------------------------
+_email_reply_handlers: list = []
+
+
+def register_email_reply_handler(fn) -> None:
+    """Register a callback for every classified inbound email reply.
+
+    fn(kind: str, from_addr: str, subject: str, payload: dict) -> None
+    """
+    _email_reply_handlers.append(fn)
 
 
 def _verify_calcom_signature(body: bytes, signature_header: str | None) -> bool:
@@ -52,7 +84,7 @@ def _verify_hubspot_signature(body: bytes, signature_header: str | None) -> bool
 
 
 def build_app():  # pragma: no cover — smoke-tested separately
-    from fastapi import FastAPI, HTTPException, Request
+    from fastapi import FastAPI
 
     app = FastAPI(title="Tenacious Conversion Engine webhooks", docs_url=None, redoc_url=None)
 
@@ -84,12 +116,53 @@ def build_app():  # pragma: no cover — smoke-tested separately
     # ------------------------------------------------------------------ email
     @app.post("/webhooks/email")
     async def email_webhook(request: Request) -> dict[str, Any]:
-        payload = await request.json()
+        try:
+            payload = await request.json()
+        except Exception:
+            raise HTTPException(status_code=422, detail="malformed JSON payload")
+
+        from_addr = payload.get("from") or payload.get("sender")
+        subject = payload.get("subject", "")
+        if not from_addr:
+            raise HTTPException(status_code=422, detail="missing required field: from")
+
         tracer = get_tracer()
-        with tracer.trace("webhook.email", subject=payload.get("subject")) as attrs:
-            _append(inbox_path, {"channel": "email", "ts": time.time(), "payload": payload})
-            attrs["from"] = payload.get("from")
-            return {"ok": True}
+        with tracer.trace("webhook.email", subject=subject) as attrs:
+            attrs["from"] = from_addr
+
+            # Classify inbound reply for downstream routing
+            body_text = (payload.get("text") or payload.get("html") or "").lower()
+            if any(w in body_text for w in ("unsubscribe", "opt out", "opt-out", "remove me", "stop emailing")):
+                kind = "unsubscribe"
+            elif any(w in body_text for w in ("interested", "tell me more", "yes", "sure", "sounds good", "let's talk")):
+                kind = "reply_positive"
+            elif any(w in body_text for w in ("not interested", "no thanks", "not right now", "pass")):
+                kind = "reply_negative"
+            elif "bounce" in (payload.get("type") or "").lower() or payload.get("bounce"):
+                kind = "bounce"
+            else:
+                kind = "reply_other"
+
+            attrs["kind"] = kind
+            _append(inbox_path, {
+                "channel": "email",
+                "ts": time.time(),
+                "from": from_addr,
+                "subject": subject,
+                "kind": kind,
+                "payload": payload,
+            })
+
+            # Dispatch to registered downstream handlers.
+            # Transport concerns end here; business logic lives in the handlers.
+            for handler in _email_reply_handlers:
+                try:
+                    handler(kind=kind, from_addr=from_addr,
+                            subject=subject, payload=payload)
+                except Exception:  # noqa: BLE001
+                    pass  # handler errors must not fail the webhook response
+
+            return {"ok": True, "kind": kind}
 
     # -------------------------------------------------------------------- sms
     @app.post("/webhooks/sms")
@@ -99,9 +172,10 @@ def build_app():  # pragma: no cover — smoke-tested separately
         text = payload.get("text", "")
         frm = payload.get("from", "")
         with tracer.trace("webhook.sms", from_=frm) as attrs:
-            kind = sms_channel.classify_inbound(text)
+            # Classify and dispatch to all registered reply handlers
+            kind = sms_channel.dispatch_inbound(from_number=frm, text=text)
             attrs["kind"] = kind
-            row = {"channel": "sms", "ts": time.time(), "from": frm,
+            row = {"channel": "sms_inbound", "ts": time.time(), "from": frm,
                    "text": text, "classified": kind}
             _append(inbox_path, row)
             if kind == "stop":
