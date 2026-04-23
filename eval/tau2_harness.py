@@ -198,14 +198,15 @@ def _run_llm_backed(
     latencies: list[float],
     tracer: Tracer,
 ) -> RunResult:
-    """LLM-backed evaluation using the agent's own LLM class.
+    """LLM-backed evaluation using direct OpenRouter HTTP calls.
 
     For each task, a retail customer scenario is constructed from the task
-    tag, submitted to the LLM, and the response is checked against pass
-    criteria. This replaces the Bernoulli simulation with real model calls
-    when tau2_bench is not installed.
+    tag, submitted to claude-sonnet-4-6 via OpenRouter, and the response is
+    checked against keyword pass criteria. Replaces Bernoulli simulation with
+    real model calls when tau2_bench is not installed.
     """
-    from agent.llm import LLM  # type: ignore
+    from agent.llm import LLM  # noqa: F401 — kept for config access
+    llm = LLM()
 
     llm = LLM()
     run_trace_id = f"tr_llm_{uuid.uuid4().hex[:8]}"
@@ -279,6 +280,34 @@ def _run_llm_backed(
         "Address their specific issue directly in 2-4 sentences."
     )
 
+    # Use OpenRouter HTTP directly — more reliable than Anthropic SDK + base_url
+    import os
+    import requests as _requests
+    _or_key = os.getenv("OPENROUTER_API_KEY", "") or os.getenv("ANTHROPIC_API_KEY", "")
+    _or_model = llm.config.llm_model  # e.g. anthropic/claude-sonnet-4-6
+
+    def _call_or(system: str, user: str) -> tuple[str, float]:
+        """Returns (response_text, cost_usd). Raises on HTTP error."""
+        resp = _requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {_or_key}"},
+            json={
+                "model": _or_model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                "temperature": 0.3,
+                "max_tokens": 150,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        text = body["choices"][0]["message"]["content"]
+        cost = float(body.get("usage", {}).get("cost", 0.0))
+        return text, cost
+
     trial_pass_rates: list[float] = []
 
     for trial_idx in range(trials):
@@ -291,15 +320,14 @@ def _run_llm_backed(
             )
             start = time.time()
             try:
-                resp = llm.generate(system=system_prompt, user=prompt, temperature=0.3, max_tokens=150)
+                text, cost = _call_or(system_prompt, prompt)
                 lat_ms = (time.time() - start) * 1000.0
                 latencies.append(lat_ms)
-                run.cost_usd_total += resp.usd_cost
-                response_lower = resp.text.lower()
-                passed = (
-                    not resp.fallback_used
-                    and any(kw in response_lower for kw in keywords)
-                )
+                run.cost_usd_total += cost
+                response_lower = text.lower()
+                # Require at least 2 keywords to match for a genuine pass
+                matched = sum(1 for kw in keywords if kw in response_lower)
+                passed = matched >= min(2, len(keywords))
             except Exception:  # noqa: BLE001
                 lat_ms = (time.time() - start) * 1000.0
                 latencies.append(lat_ms)
