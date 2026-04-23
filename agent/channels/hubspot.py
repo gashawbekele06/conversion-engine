@@ -58,16 +58,35 @@ class HubSpotChannel:
                     from hubspot.crm.contacts import SimplePublicObjectInputForCreate  # type: ignore
                     from hubspot.crm.contacts.exceptions import ApiException  # type: ignore
 
+                    # HubSpot rejects IANA-reserved .example TLD; remap to .dev for live API
+                    live_email = email[:-8] + ".dev" if email.endswith(".example") else email
+
+                    # Map orchestrator field names → HubSpot internal names.
+                    # Only send properties that exist in HubSpot (standard + our custom ones).
+                    _prop_map = {
+                        "first_name": "firstname",
+                        "last_name": "lastname",
+                        "title": "jobtitle",
+                        "company_name": "company",
+                    }
+                    _allowed = {"firstname", "lastname", "jobtitle", "company",
+                                "crunchbase_id", "last_enriched_at"}
+                    live_props: dict[str, Any] = {}
+                    for k, v in properties.items():
+                        mapped = _prop_map.get(k, k)
+                        if mapped in _allowed and v is not None:
+                            live_props[mapped] = str(v)
+
                     # Check if contact exists by email
                     search_response = self._client.crm.contacts.search_api.do_search({
                         "filterGroups": [{
                             "filters": [{
                                 "propertyName": "email",
                                 "operator": "EQ",
-                                "value": email,
+                                "value": live_email,
                             }]
                         }],
-                        "properties": list(required | set(properties.keys())),
+                        "properties": list(_allowed),
                         "limit": 1,
                     })
                     results = search_response.results or []
@@ -77,11 +96,11 @@ class HubSpotChannel:
                         # Update existing contact
                         self._client.crm.contacts.basic_api.update(
                             contact_id=contact_id,
-                            simple_public_object_input={"properties": properties},
+                            simple_public_object_input={"properties": live_props},
                         )
                     else:
                         # Create new contact
-                        all_props = {"email": email, **properties}
+                        all_props = {"email": live_email, **live_props}
                         resp = self._client.crm.contacts.basic_api.create(
                             simple_public_object_input_for_create=SimplePublicObjectInputForCreate(
                                 properties=all_props,
