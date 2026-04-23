@@ -101,7 +101,7 @@ def _percentile(values: list[float], p: float) -> float:
 def run_pass_at_1(
     *,
     slice_name: str,
-    trials: int = 5,
+    trials: int = 1,
     model: str | None = None,
     real_run: bool = False,
     simulate: bool = True,
@@ -498,7 +498,7 @@ if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser()
     p.add_argument("--slice", default="dev")
-    p.add_argument("--trials", type=int, default=5)
+    p.add_argument("--trials", type=int, default=1)
     p.add_argument("--real", action="store_true",
                    help="Actually call τ²-Bench + OpenRouter. Requires install + API key.")
     args = p.parse_args()

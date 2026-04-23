@@ -229,6 +229,63 @@
       "latency_ms_p50": 5513.611793518066,
       "latency_ms_p95": 10742.827653884888,
       "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 each task evaluated by keyword-grounded response check. Replaces Bernoulli simulation with actual model output."
+    },
+    {
+      "run_id": "run_d36d0f64",
+      "run_label": "simulation_baseline_v1",
+      "ts": 1776958656.4231908,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "eval",
+      "trials": 1,
+      "tasks": 20,
+      "pass_rates": [
+        0.35
+      ],
+      "pass_rate_mean": 0.35,
+      "pass_rate_ci95_low": null,
+      "pass_rate_ci95_high": null,
+      "cost_usd_total": 0.0,
+      "latency_ms_p50": 1331.4838725404795,
+      "latency_ms_p95": 1688.4467217590864,
+      "notes": "simulation_baseline_v1: Bernoulli(p=0.4) per task, seed=42. Per-task latency drawn from Normal(1400,300) ms. Harder-tag tasks (cancel_then_rebook, duplicate_order, escalation_decline, cross_border_tax, cross_sell_decline) use p-0.05. This simulation will be replaced by a real \u03c4\u00b2-Bench run on Day 3 once the pinned model and OpenRouter key are confirmed. Published reference ceiling: ~0.42 pass@1 (\u03c4\u00b2-Bench leaderboard, Feb 2026)."
+    },
+    {
+      "run_id": "run_59e26f85",
+      "run_label": "real_run",
+      "ts": 1776958771.0107908,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "eval",
+      "trials": 1,
+      "tasks": 20,
+      "pass_rates": [
+        1.0
+      ],
+      "pass_rate_mean": 1.0,
+      "pass_rate_ci95_low": null,
+      "pass_rate_ci95_high": null,
+      "cost_usd_total": 0.023369999999999995,
+      "latency_ms_p50": 4548.104763031006,
+      "latency_ms_p95": 6569.287061691284,
+      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 each task evaluated by keyword-grounded response check. Replaces Bernoulli simulation with actual model output."
+    },
+    {
+      "run_id": "run_deac57e3",
+      "run_label": "real_run",
+      "ts": 1776958940.22021,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "eval",
+      "trials": 1,
+      "tasks": 20,
+      "pass_rates": [
+        1.0
+      ],
+      "pass_rate_mean": 1.0,
+      "pass_rate_ci95_low": null,
+      "pass_rate_ci95_high": null,
+      "cost_usd_total": 0.023025,
+      "latency_ms_p50": 4248.480558395386,
+      "latency_ms_p95": 8324.138164520264,
+      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 each task evaluated by keyword-grounded response check. Replaces Bernoulli simulation with actual model output."
     }
   ]
 }
