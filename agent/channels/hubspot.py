@@ -69,8 +69,11 @@ class HubSpotChannel:
                         "title": "jobtitle",
                         "company_name": "company",
                     }
+                    # Properties allowed in live HubSpot API calls.
+                    # Standard HubSpot names + custom properties created in portal.
+                    # icp_segment explicitly maps ICP classification to the contact record.
                     _allowed = {"firstname", "lastname", "jobtitle", "company",
-                                "crunchbase_id", "last_enriched_at"}
+                                "crunchbase_id", "last_enriched_at", "icp_segment"}
                     live_props: dict[str, Any] = {}
                     for k, v in properties.items():
                         mapped = _prop_map.get(k, k)

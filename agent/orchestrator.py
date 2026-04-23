@@ -83,16 +83,28 @@ class Orchestrator:
             )
 
             # 5. HubSpot upsert (enforces required crunchbase_id + last_enriched_at)
+            #
+            # ICP segment mapping:
+            #   segment 1 → Series A/B, rapid engineering hiring
+            #   segment 2 → cost-restructure / efficiency play
+            #   segment 3 → CTO / VP-Eng transition (leadership change signal)
+            #   segment 4 → capability gap (AI maturity score < 2)
+            #
+            # icp_segment is written explicitly alongside crunchbase_id so the
+            # HubSpot contact record carries both enrichment provenance and
+            # the segment classification that drove outreach.
+            segment_val = brief.get("segment_assignment", {}).get("segment")
             contact_rec = self.hs.upsert_contact(
                 email=prospect["contact"]["email"],
                 properties={
                     "crunchbase_id": crunchbase_id,
                     "last_enriched_at": brief["last_enriched_at"],
+                    "icp_segment": segment_val,          # explicit ICP segment field
                     "first_name": prospect["contact"]["first_name"],
                     "last_name": prospect["contact"]["last_name"],
                     "title": prospect["contact"]["title"],
                     "company_name": brief["company_name"],
-                    "segment": brief.get("segment_assignment", {}).get("segment"),
+                    "segment": segment_val,
                     "segment_confidence": brief.get("segment_assignment", {}).get("confidence"),
                     "ai_maturity_score": (brief["signals"]["ai_maturity"] or {}).get("score"),
                     "stage": "cold_outbound_sent",
@@ -126,16 +138,16 @@ class Orchestrator:
                     context_brief=brief,
                 )
                 booking_id = booking["id"]
-                self.hs.mark_meeting_booked(
+
+                # Booking-to-HubSpot linkage:
+                # Every completed Cal.com booking MUST trigger a HubSpot update
+                # for the same prospect so the contact record always reflects
+                # the latest meeting state. This is the authoritative integration
+                # point — do not skip or make best-effort.
+                self._link_booking_to_hubspot(
                     email=prospect["contact"]["email"],
                     when_iso=chosen,
-                    calcom_booking_id=booking_id,
-                )
-                self.hs.log_engagement(
-                    email=prospect["contact"]["email"],
-                    kind="MEETING",
-                    body=f"Discovery call booked for {chosen}",
-                    metadata={"calcom_booking_id": booking_id},
+                    booking_id=booking_id,
                 )
 
             latency_ms = (time.time() - start) * 1000.0
@@ -155,6 +167,27 @@ class Orchestrator:
                 latency_ms=latency_ms,
                 is_sink=email_res.is_sink,
             )
+
+    def _link_booking_to_hubspot(
+        self, *, email: str, when_iso: str, booking_id: str
+    ) -> None:
+        """Propagate a completed Cal.com booking into HubSpot.
+
+        This is the single authoritative linkage point between Cal.com and HubSpot.
+        Called after every successful booking — ensures the contact record always
+        reflects the latest meeting state and that no booking is ever orphaned.
+        """
+        self.hs.mark_meeting_booked(
+            email=email,
+            when_iso=when_iso,
+            calcom_booking_id=booking_id,
+        )
+        self.hs.log_engagement(
+            email=email,
+            kind="MEETING",
+            body=f"Discovery call booked for {when_iso}",
+            metadata={"calcom_booking_id": booking_id},
+        )
 
     def run_all(self, prospects: list[dict[str, Any]]) -> list[ThreadResult]:
         results = []
