@@ -68,7 +68,7 @@ segment-specific pitch.
 ## 3. Benchmark Results
 
 All runs logged in `eval/score_log.json` and traced in
-`eval/traces/trace_log.jsonl` (157 rows).
+`eval/traces/trace_log.jsonl` (297 unique trace IDs, 5,191 rows).
 
 ### Act I — Baseline Simulation (`run_14e99ac7`)
 
@@ -182,7 +182,7 @@ Four ICP segments mapped on AI Maturity × Buying Trigger axes:
 Validated via `python eval/evidence_graph.py eval/traces/evidence_graph.json`:
 
 ```json
-{"ok": true, "issues": [], "n_claims": 15, "n_traces": 157}
+{"ok": true, "issues": [], "n_claims": 15, "n_traces": 297}
 ```
 
 All 15 claims resolve to either a trace row (`trace:tr_*`) or a published
