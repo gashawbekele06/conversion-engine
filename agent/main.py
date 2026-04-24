@@ -100,13 +100,16 @@ def main(argv: list[str] | None = None) -> int:
     p_ra = sub.add_parser("run-all")
     p_ra.set_defaults(func=_cmd_run_all)
 
+    p_dr = sub.add_parser("dry-run", help="Run all prospects with kill-switch (no LLM cost).")
+    p_dr.set_defaults(func=_cmd_dry_run)
+
     p_se = sub.add_parser("serve")
     p_se.add_argument("--host", default="0.0.0.0")
     p_se.add_argument("--port", type=int, default=8080)
     p_se.set_defaults(func=_cmd_serve)
 
     args = parser.parse_args(argv)
-    if args.dry_run:
+    if getattr(args, "dry_run", False):
         return _cmd_dry_run(args)
     if not args.cmd:
         parser.print_help()
