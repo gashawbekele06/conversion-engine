@@ -76,23 +76,45 @@ class SMSChannel:
                 pass  # handler errors must not drop the inbound message
         return kind
 
-    def _has_prior_engagement(self, to: str) -> bool:
-        """Return True if this number has any prior inbound SMS in the sink.
+    def _has_prior_engagement(self, to: str, *, from_email: str | None = None) -> bool:
+        """Return True if this number has prior SMS engagement OR if from_email
+        has a prior email reply — enforcing the "email reply before SMS" policy.
 
-        This is the code-level gate that enforces the warm-lead constraint:
-        a lead cannot receive SMS unless they have previously replied.
+        A prospect who replied to outbound email is warm and qualifies for SMS.
+        A prospect who only received email but never replied is cold.
+        This makes the email-reply → SMS escalation path explicit in code.
         """
-        if not self.sink_path.exists():
-            return False
-        try:
-            with self.sink_path.open(encoding="utf-8") as fh:
-                for line in fh:
-                    row = json.loads(line)
-                    # Any prior inbound reply from this number counts as warm
-                    if row.get("channel") == "sms_inbound" and row.get("from") == to:
-                        return True
-        except Exception:  # noqa: BLE001
-            pass
+        # Check SMS inbound history
+        if self.sink_path.exists():
+            try:
+                with self.sink_path.open(encoding="utf-8") as fh:
+                    for line in fh:
+                        row = json.loads(line)
+                        if row.get("channel") == "sms_inbound" and row.get("from") == to:
+                            return True
+            except Exception:  # noqa: BLE001
+                pass
+
+        # Check email reply history — an email reply qualifies this lead for SMS escalation.
+        # Policy: "email reply before SMS" — the prospect must have already engaged over email.
+        if from_email:
+            inbox_path = self.sink_path.parent / "inbox.jsonl"
+            if inbox_path.exists():
+                try:
+                    with inbox_path.open(encoding="utf-8") as fh:
+                        for line in fh:
+                            row = json.loads(line)
+                            if (
+                                row.get("channel") == "email"
+                                and row.get("from") == from_email
+                                and row.get("kind") in (
+                                    "reply_positive", "reply_negative", "reply_other"
+                                )
+                            ):
+                                return True
+                except Exception:  # noqa: BLE001
+                    pass
+
         return False
 
     def send(
@@ -103,18 +125,25 @@ class SMSChannel:
         synthetic: bool = True,
         metadata: dict[str, Any] | None = None,
         warm_lead: bool = False,
+        from_email: str | None = None,
     ) -> SMSSendResult:
         """Send an SMS.
 
         warm_lead=True must be passed explicitly by the caller after confirming
-        the lead has prior engagement. Without it, send() checks the inbound
-        sink and raises WarmLeadRequired for cold leads — making it impossible
-        by construction to SMS a cold prospect.
+        the lead has prior engagement. Without it, send() checks both the SMS
+        inbound sink AND the email inbox for prior engagement:
+          - prior SMS reply → warm
+          - prior email reply → warm (email reply qualifies for SMS escalation)
+          - no prior engagement of either kind → WarmLeadRequired raised
+
+        from_email should always be provided so the email-reply path can be checked.
+        Omitting it means only SMS history is consulted — the weaker check.
         """
-        # Warm-lead gate: enforced in code, not just documented
-        if not warm_lead and not self._has_prior_engagement(to):
+        # Warm-lead gate: email reply before SMS is enforced in code, not just documented
+        if not warm_lead and not self._has_prior_engagement(to, from_email=from_email):
             raise WarmLeadRequired(
-                f"SMS blocked for {to}: no prior engagement found. "
+                f"SMS blocked for {to}: no prior engagement found "
+                f"(checked SMS sink and email inbox for {from_email or 'unknown'}). "
                 "SMS is a warm-lead-only channel. "
                 "Pass warm_lead=True only after confirming inbound reply."
             )

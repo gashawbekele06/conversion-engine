@@ -85,6 +85,40 @@ class Orchestrator:
                         "stage": "warm_lead_sms_reply",
                     },
                 )
+                # Cal.com booking from SMS path — same bench gate and booking flow
+                # as the email reply path. SMS engagement is sufficient warm signal.
+                brief = self._email_brief.get(email, {})
+                stack = brief.get("recommended_stack", "python")
+                ok, reason = can_commit(stack, engineers_requested=1)
+                if not ok:
+                    self.hs.log_engagement(
+                        email=email,
+                        kind="NOTE",
+                        body=f"Bench capacity gate blocked slot offer (SMS path): {reason}",
+                        metadata={"stack": stack, "direction": "internal"},
+                    )
+                else:
+                    try:
+                        slots = self.cal.offer_slots(
+                            prospect_email=email,
+                            timezone="UTC",
+                            count=3,
+                        )
+                        if slots:
+                            booking = self.cal.book(
+                                prospect_email=email,
+                                prospect_name=email,
+                                when_iso=slots[0],
+                                timezone="UTC",
+                                context_brief=brief,
+                            )
+                            self._link_booking_to_hubspot(
+                                email=email,
+                                when_iso=slots[0],
+                                booking_id=booking["id"],
+                            )
+                    except Exception:  # noqa: BLE001
+                        pass  # booking errors must not crash the SMS handler
             elif kind == "stop":
                 self.hs.log_engagement(
                     email=email,
