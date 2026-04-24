@@ -45,8 +45,8 @@ The peer-count gate described in `method.md` is designed but not implemented. `c
 ### 4. delta_60d = 0 for Live Playwright Scrapes
 `agent/enrichment/jobposts.py` sets `delta_60d=0` on live Playwright scrapes because computing velocity requires a historical snapshot. The fixture path returns real `delta_60d` values. In production, a nightly snapshot job would be needed to compute true 60-day velocity. **Priority: MEDIUM.**
 
-### 5. HubSpot Mid-Thread Engagement Updates Missing
-The orchestrator upserts HubSpot once at step 6 (after email send). If a prospect replies via SMS or email, the HubSpot record is not automatically updated mid-thread. The `register_reply_handler` hook in `SMSChannel` is wired but the HubSpot update handler is not registered in the orchestrator. **Priority: MEDIUM.**
+### 5. HubSpot SMS Reply Updates — Implemented
+`Orchestrator._register_sms_reply_handler()` registers a HubSpot callback at init time. Inbound SMS replies (reply/stop/help) update the CRM stage and log an engagement. Phone→email mapping is populated per prospect in `run_one` via `_sms_phone_email`. Unknown numbers (not in the map) are silently ignored.
 
 ### 6. GitHub Org Disambiguation Not Implemented
 `agent/enrichment/ai_maturity.py` uses a `github_org_activity` field from the fixture. In production, the scraper could attribute activity from a same-prefix but unrelated GitHub org (P-027). A disambiguation step comparing org description to company name is needed before scoring. **Priority: LOW.**

@@ -45,6 +45,57 @@ class Orchestrator:
         self.sms = SMSChannel(self.cfg)
         self.hs = HubSpotChannel(self.cfg)
         self.cal = CalcomChannel(self.cfg)
+        # Maps prospect phone_e164 → email so the SMS reply handler can update HubSpot.
+        self._sms_phone_email: dict[str, str] = {}
+        self._register_sms_reply_handler()
+
+    def _register_sms_reply_handler(self) -> None:
+        """Register HubSpot CRM update as a callback for every inbound SMS reply.
+
+        This is the missing link from Act II: SMSChannel.register_reply_handler()
+        was wired but never called from the orchestrator. Every SMS event (reply,
+        stop, help) now writes back to HubSpot so CRM state stays in sync with
+        actual prospect engagement across channels.
+        """
+        def _on_sms_reply(kind: str, from_number: str, text: str) -> None:
+            email = self._sms_phone_email.get(from_number)
+            if not email:
+                return  # unknown number — no CRM record to update
+
+            if kind == "reply":
+                self.hs.log_engagement(
+                    email=email,
+                    kind="SMS",
+                    body=text,
+                    metadata={"from_number": from_number, "direction": "inbound"},
+                )
+                # Advance CRM stage to warm_lead on first SMS reply
+                self.hs.upsert_contact(
+                    email=email,
+                    properties={
+                        "crunchbase_id": self._sms_phone_email.get(
+                            from_number + "_crunchbase_id", ""
+                        ),
+                        "last_enriched_at": "",
+                        "stage": "warm_lead_sms_reply",
+                    },
+                )
+            elif kind == "stop":
+                self.hs.log_engagement(
+                    email=email,
+                    kind="NOTE",
+                    body="Prospect sent STOP — unsubscribed from SMS channel.",
+                    metadata={"from_number": from_number, "direction": "inbound"},
+                )
+            elif kind == "help":
+                self.hs.log_engagement(
+                    email=email,
+                    kind="NOTE",
+                    body="Prospect sent HELP — auto-response sent.",
+                    metadata={"from_number": from_number, "direction": "inbound"},
+                )
+
+        self.sms.register_reply_handler(_on_sms_reply)
 
     def run_one(
         self,
@@ -57,6 +108,14 @@ class Orchestrator:
         with tracer.trace("orchestrator.run_one", prospect_id=prospect["id"]) as attrs:
             start = time.time()
             crunchbase_id = prospect["crunchbase_id"]
+
+            # Register phone→email mapping so the SMS reply handler can update HubSpot
+            # when an inbound SMS arrives for this prospect on any channel.
+            phone = prospect["contact"].get("phone_e164", "")
+            email = prospect["contact"]["email"]
+            if phone:
+                self._sms_phone_email[phone] = email
+                self._sms_phone_email[phone + "_crunchbase_id"] = crunchbase_id
 
             # 1–2. Enrichment
             brief = build_hiring_signal_brief(crunchbase_id)
