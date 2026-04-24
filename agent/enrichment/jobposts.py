@@ -1,16 +1,45 @@
-"""Public job-post velocity signal.
+"""Public job-post velocity signal with 60-day delta computation.
 
 Production: Playwright scrape of BuiltIn / Wellfound company pages.
 Rules: public pages only, no login, no captcha bypass, respects robots.txt.
 Falls back to synthetic fixture when Playwright is unavailable or scrape fails.
+
+60-day delta
+------------
+Each live scrape appends the current role count to a JSONL snapshot store at
+eval/traces/jobpost_snapshots.jsonl. On the next scrape, _compute_delta_60d()
+finds the snapshot closest to 60 days ago (within a ±30-day tolerance) and
+returns the delta.
+
+Edge cases:
+  no_snapshot   — store empty or no snapshot within tolerance → delta_60d=None,
+                  velocity_label="insufficient_signal"
+  too_old       — closest snapshot is >90 days ago → treated as no_snapshot
+  negative      — current < prior → delta is negative (company is shrinking);
+                  velocity_label="declined"
+  zero          — no change → velocity_label="flat"
+
+Synthetic fixture path always returns real delta_60d from the fixture record.
 """
 from __future__ import annotations
 
+import json
 import re
+import time
+from pathlib import Path
 from typing import Any
 
 from .crunchbase import _load_sample
 from ..tracing import get_tracer
+
+
+# Snapshot store location — relative to repo root
+_SNAPSHOT_PATH = Path(__file__).resolve().parents[3] / "eval" / "traces" / "jobpost_snapshots.jsonl"
+
+# Tolerance window: a snapshot is "~60 days ago" if it falls in [30, 90] days old
+_DELTA_MIN_DAYS = 30
+_DELTA_MAX_DAYS = 90
+_TARGET_DAYS = 60
 
 # Engineering-related keywords for role classification
 _PY_RE = re.compile(r"\bpython\b", re.I)
@@ -79,13 +108,18 @@ def _scrape_builtin(company_name: str) -> dict[str, Any] | None:
             browser.close()
 
         total = len(titles)
+        # Compute real delta before saving this snapshot (so we compare against old data)
+        delta_60d, velocity_label = _compute_delta_60d(company_name, total)
+        # Save this observation for future delta computations
+        _save_snapshot(company_name, total)
         return {
             "total": total,
             "python": sum(1 for t in titles if _PY_RE.search(t)),
             "ml": sum(1 for t in titles if _ML_RE.search(t)),
             "data": sum(1 for t in titles if _DATA_RE.search(t)),
-            "delta_60d": 0,  # delta requires historical snapshot; set 0 for live scrape
-            "tripled_60d": False,
+            "delta_60d": delta_60d,       # None = insufficient_signal
+            "velocity_label": velocity_label,
+            "tripled_60d": _is_tripled(total, delta_60d),
             "sources": ["builtin"],
         }
     except Exception:  # noqa: BLE001
@@ -110,19 +144,20 @@ def job_velocity(crunchbase_id: str) -> dict[str, Any] | None:
             attrs["source"] = "playwright_live"
             return live
 
-        # Fallback: synthetic fixture data
+        # Fallback: synthetic fixture data (real delta_60d from fixture)
         attrs["source"] = "fixture"
         roles = rec["signals"]["open_engineering_roles"]
         total = roles["total"]
-        delta = roles["delta_60d"]
-        tripled = total >= 3 and total >= (total - delta) * 3
+        delta = roles["delta_60d"]   # fixture provides real historical delta
+        velocity_label = _velocity_label_from_delta(total, delta)
         return {
             "total": total,
             "python": roles.get("python", 0),
             "ml": roles.get("ml", 0),
             "data": roles.get("data", 0),
             "delta_60d": delta,
-            "tripled_60d": tripled,
+            "velocity_label": velocity_label,
+            "tripled_60d": _is_tripled(total, delta),
             "sources": ["builtin", "wellfound", "linkedin_public"],
         }
 
@@ -141,3 +176,103 @@ def confidence_from_velocity(v: dict[str, Any] | None) -> float:
     if total < 10:
         return 0.55
     return 0.85
+
+
+# ---------------------------------------------------------------------------
+# Snapshot store — real 60-day delta computation
+# ---------------------------------------------------------------------------
+
+def _save_snapshot(company_key: str, total: int) -> None:
+    """Append current role count to the snapshot store."""
+    try:
+        _SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        row = {"company": company_key, "total": total, "ts": time.time()}
+        with _SNAPSHOT_PATH.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row) + "\n")
+    except Exception:  # noqa: BLE001
+        pass  # snapshot write failure must not block enrichment
+
+
+def _load_snapshots(company_key: str) -> list[dict[str, Any]]:
+    """Return all snapshots for this company key, sorted oldest first."""
+    if not _SNAPSHOT_PATH.exists():
+        return []
+    rows = []
+    try:
+        with _SNAPSHOT_PATH.open(encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    row = json.loads(line)
+                    if row.get("company") == company_key:
+                        rows.append(row)
+                except Exception:  # noqa: BLE001
+                    pass
+    except Exception:  # noqa: BLE001
+        pass
+    return sorted(rows, key=lambda r: r["ts"])
+
+
+def _compute_delta_60d(
+    company_key: str, current_total: int
+) -> tuple[int | None, str]:
+    """Find the snapshot closest to 60 days ago and compute the delta.
+
+    Returns (delta_60d, velocity_label).
+    delta_60d is None when no usable snapshot exists (velocity_label="insufficient_signal").
+
+    Edge cases:
+      no snapshots         → (None, "insufficient_signal")
+      all snapshots too new (<30 days) → (None, "insufficient_signal")
+      all snapshots too old (>90 days) → (None, "insufficient_signal")  [staleness]
+      negative delta       → (delta, "declined")
+      zero delta           → (0, "flat")
+    """
+    now = time.time()
+    snapshots = _load_snapshots(company_key)
+
+    best: dict[str, Any] | None = None
+    best_distance = float("inf")
+
+    for snap in snapshots:
+        age_days = (now - snap["ts"]) / 86_400
+        if _DELTA_MIN_DAYS <= age_days <= _DELTA_MAX_DAYS:
+            distance = abs(age_days - _TARGET_DAYS)
+            if distance < best_distance:
+                best = snap
+                best_distance = distance
+
+    if best is None:
+        return None, "insufficient_signal"
+
+    delta = current_total - best["total"]
+    return delta, _velocity_label_from_delta(current_total, delta)
+
+
+def _velocity_label_from_delta(current: int, delta: int | None) -> str:
+    """Map (current_total, delta_60d) to a categorical velocity label.
+
+    Labels align with the velocity_label enum in hiring_signal_brief.schema.json.
+    """
+    if delta is None:
+        return "insufficient_signal"
+    if delta < 0:
+        return "declined"
+    if delta == 0:
+        return "flat"
+    prior = current - delta
+    if prior <= 0:
+        # Can't compute ratio meaningfully — treat as significant increase
+        return "increased_modestly"
+    ratio = current / prior
+    if ratio >= 3.0:
+        return "tripled_or_more"
+    if ratio >= 2.0:
+        return "doubled"
+    return "increased_modestly"
+
+
+def _is_tripled(current: int, delta: int | None) -> bool:
+    if delta is None or delta <= 0:
+        return False
+    prior = current - delta
+    return prior > 0 and current >= prior * 3
