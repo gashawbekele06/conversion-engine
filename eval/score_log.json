@@ -67,7 +67,7 @@
       "cost_usd_total": 0.20233500000000001,
       "latency_ms_p50": 4872.121095657349,
       "latency_ms_p95": 10952.723264694214,
-      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed — each task evaluated by keyword-grounded response check. Referenced in evidence graph C02."
+      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 each task evaluated by keyword-grounded response check. Referenced in evidence graph C02."
     },
     {
       "run_id": "run_a41b3a8f",
@@ -90,7 +90,7 @@
       "cost_usd_total": 0.11561999999999997,
       "latency_ms_p50": 4668.43056678772,
       "latency_ms_p95": 8580.782175064087,
-      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed — keyword-grounded response check. Note: pass@1=1.0 reflects keyword-match ceiling on held-out slice; not the dual-control tau2-bench score. Referenced in evidence graph C04."
+      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 keyword-grounded response check. Note: pass@1=1.0 reflects keyword-match ceiling on held-out slice; not the dual-control tau2-bench score. Referenced in evidence graph C04."
     },
     {
       "run_id": "run_8b632146",
@@ -113,7 +113,7 @@
       "cost_usd_total": 0.20632500000000006,
       "latency_ms_p50": 5527.599334716797,
       "latency_ms_p95": 11904.011249542236,
-      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed — keyword-grounded response check. Act IV final dev run with proper 5-trial CI. Referenced in evidence graph C03 and memo."
+      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 keyword-grounded response check. Act IV final dev run with proper 5-trial CI. Referenced in evidence graph C03 and memo."
     },
     {
       "run_id": "run_4437c5ea",
@@ -136,7 +136,7 @@
       "cost_usd_total": 0.20609999999999995,
       "latency_ms_p50": 5513.611793518066,
       "latency_ms_p95": 10742.827653884888,
-      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed — keyword-grounded response check. Ablation run confirming stability of dev-slice score across seeds."
+      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 keyword-grounded response check. Ablation run confirming stability of dev-slice score across seeds."
     },
     {
       "run_id": "run_140a8c18",
@@ -155,7 +155,7 @@
       "cost_usd_total": 0.040853999999999994,
       "latency_ms_p50": 4166.023969650269,
       "latency_ms_p95": 6995.227336883545,
-      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed — keyword-grounded response check. Official Act I dev baseline cited in baseline.md."
+      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 keyword-grounded response check. Official Act I dev baseline cited in baseline.md."
     },
     {
       "run_id": "run_a12f55d4",
@@ -174,7 +174,166 @@
       "cost_usd_total": 0.02289,
       "latency_ms_p50": 4251.810073852539,
       "latency_ms_p95": 6760.342597961426,
-      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed — keyword-grounded response check. Note: pass@1=1.0 reflects keyword-match ceiling on held-out slice. Official held-out validation cited in baseline.md."
+      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 keyword-grounded response check. Note: pass@1=1.0 reflects keyword-match ceiling on held-out slice. Official held-out validation cited in baseline.md."
+    },
+    {
+      "run_id": "run_059d249d",
+      "run_label": "real_run",
+      "ts": 1777056305.2978263,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "held_out",
+      "trials": 3,
+      "tasks": 20,
+      "pass_rates": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "pass_rate_mean": 1.0,
+      "pass_rate_ci95_low": 1.0,
+      "pass_rate_ci95_high": 1.0,
+      "cost_usd_total": 0.06960000000000002,
+      "latency_ms_p50": 3404.6952724456787,
+      "latency_ms_p95": 4915.800333023071,
+      "notes": "llm_backed_v1: real LLM calls via anthropic/claude-sonnet-4-6 (OpenRouter). tau2_bench not installed \u2014 each task evaluated by keyword-grounded response check. Replaces Bernoulli simulation with actual model output."
+    },
+    {
+      "run_id": "run_d323c22f",
+      "run_label": "simulation_baseline_v1",
+      "ts": 1777056305.4599087,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "dev",
+      "trials": 5,
+      "tasks": 30,
+      "pass_rates": [
+        0.4666666666666667,
+        0.4,
+        0.5,
+        0.4666666666666667,
+        0.43333333333333335
+      ],
+      "pass_rate_mean": 0.4533333333333333,
+      "pass_rate_ci95_low": 0.4235,
+      "pass_rate_ci95_high": 0.4831,
+      "cost_usd_total": 0.0,
+      "latency_ms_p50": 1380.5021059272972,
+      "latency_ms_p95": 1827.7092971523557,
+      "notes": "simulation_baseline_v1: Bernoulli(p=0.4) per task, seed=42. Per-task latency drawn from Normal(1400,300) ms. Harder-tag tasks (cancel_then_rebook, duplicate_order, escalation_decline, cross_border_tax, cross_sell_decline) use p-0.05. This simulation will be replaced by a real \u03c4\u00b2-Bench run on Day 3 once the pinned model and OpenRouter key are confirmed. Published reference ceiling: ~0.42 pass@1 (\u03c4\u00b2-Bench leaderboard, Feb 2026)."
+    },
+    {
+      "run_id": "run_6a95f0c0",
+      "run_label": "simulation_baseline_v1",
+      "ts": 1777056305.593048,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "dev",
+      "trials": 5,
+      "tasks": 30,
+      "pass_rates": [
+        0.4,
+        0.5,
+        0.4666666666666667,
+        0.43333333333333335,
+        0.43333333333333335
+      ],
+      "pass_rate_mean": 0.44666666666666666,
+      "pass_rate_ci95_low": 0.4169,
+      "pass_rate_ci95_high": 0.4765,
+      "cost_usd_total": 0.0,
+      "latency_ms_p50": 1381.1066694393262,
+      "latency_ms_p95": 1861.0570566647764,
+      "notes": "simulation_baseline_v1: Bernoulli(p=0.4) per task, seed=43. Per-task latency drawn from Normal(1400,300) ms. Harder-tag tasks (cancel_then_rebook, duplicate_order, escalation_decline, cross_border_tax, cross_sell_decline) use p-0.05. This simulation will be replaced by a real \u03c4\u00b2-Bench run on Day 3 once the pinned model and OpenRouter key are confirmed. Published reference ceiling: ~0.42 pass@1 (\u03c4\u00b2-Bench leaderboard, Feb 2026)."
+    },
+    {
+      "run_id": "run_2bd8fb32",
+      "run_label": "simulation_baseline_v1",
+      "ts": 1777056305.7614524,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "dev",
+      "trials": 5,
+      "tasks": 30,
+      "pass_rates": [
+        0.5,
+        0.4666666666666667,
+        0.43333333333333335,
+        0.43333333333333335,
+        0.5333333333333333
+      ],
+      "pass_rate_mean": 0.47333333333333333,
+      "pass_rate_ci95_low": 0.4393,
+      "pass_rate_ci95_high": 0.5074,
+      "cost_usd_total": 0.0,
+      "latency_ms_p50": 1409.3955208749119,
+      "latency_ms_p95": 1875.7386919381254,
+      "notes": "simulation_baseline_v1: Bernoulli(p=0.4) per task, seed=44. Per-task latency drawn from Normal(1400,300) ms. Harder-tag tasks (cancel_then_rebook, duplicate_order, escalation_decline, cross_border_tax, cross_sell_decline) use p-0.05. This simulation will be replaced by a real \u03c4\u00b2-Bench run on Day 3 once the pinned model and OpenRouter key are confirmed. Published reference ceiling: ~0.42 pass@1 (\u03c4\u00b2-Bench leaderboard, Feb 2026)."
+    },
+    {
+      "run_id": "run_3c080916",
+      "run_label": "simulation_baseline_v1",
+      "ts": 1777056315.386115,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "held_out",
+      "trials": 5,
+      "tasks": 20,
+      "pass_rates": [
+        0.35,
+        0.4,
+        0.65,
+        0.5,
+        0.4
+      ],
+      "pass_rate_mean": 0.45999999999999996,
+      "pass_rate_ci95_low": 0.3664,
+      "pass_rate_ci95_high": 0.5536,
+      "cost_usd_total": 0.0,
+      "latency_ms_p50": 1375.8412161695067,
+      "latency_ms_p95": 1844.148978837738,
+      "notes": "simulation_baseline_v1: Bernoulli(p=0.4) per task, seed=42. Per-task latency drawn from Normal(1400,300) ms. Harder-tag tasks (cancel_then_rebook, duplicate_order, escalation_decline, cross_border_tax, cross_sell_decline) use p-0.05. This simulation will be replaced by a real \u03c4\u00b2-Bench run on Day 3 once the pinned model and OpenRouter key are confirmed. Published reference ceiling: ~0.42 pass@1 (\u03c4\u00b2-Bench leaderboard, Feb 2026)."
+    },
+    {
+      "run_id": "run_f13acec7",
+      "run_label": "simulation_baseline_v1",
+      "ts": 1777056315.473689,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "held_out",
+      "trials": 5,
+      "tasks": 20,
+      "pass_rates": [
+        0.4,
+        0.65,
+        0.5,
+        0.4,
+        0.4
+      ],
+      "pass_rate_mean": 0.47000000000000003,
+      "pass_rate_ci95_low": 0.3841,
+      "pass_rate_ci95_high": 0.5559,
+      "cost_usd_total": 0.0,
+      "latency_ms_p50": 1396.6797658120804,
+      "latency_ms_p95": 1861.0570566647764,
+      "notes": "simulation_baseline_v1: Bernoulli(p=0.4) per task, seed=43. Per-task latency drawn from Normal(1400,300) ms. Harder-tag tasks (cancel_then_rebook, duplicate_order, escalation_decline, cross_border_tax, cross_sell_decline) use p-0.05. This simulation will be replaced by a real \u03c4\u00b2-Bench run on Day 3 once the pinned model and OpenRouter key are confirmed. Published reference ceiling: ~0.42 pass@1 (\u03c4\u00b2-Bench leaderboard, Feb 2026)."
+    },
+    {
+      "run_id": "run_fb3626f1",
+      "run_label": "simulation_baseline_v1",
+      "ts": 1777056315.5443401,
+      "model": "anthropic/claude-sonnet-4-6",
+      "slice": "held_out",
+      "trials": 5,
+      "tasks": 20,
+      "pass_rates": [
+        0.65,
+        0.5,
+        0.4,
+        0.4,
+        0.6
+      ],
+      "pass_rate_mean": 0.51,
+      "pass_rate_ci95_low": 0.4206,
+      "pass_rate_ci95_high": 0.5994,
+      "cost_usd_total": 0.0,
+      "latency_ms_p50": 1445.6603056713623,
+      "latency_ms_p95": 1875.7386919381254,
+      "notes": "simulation_baseline_v1: Bernoulli(p=0.4) per task, seed=44. Per-task latency drawn from Normal(1400,300) ms. Harder-tag tasks (cancel_then_rebook, duplicate_order, escalation_decline, cross_border_tax, cross_sell_decline) use p-0.05. This simulation will be replaced by a real \u03c4\u00b2-Bench run on Day 3 once the pinned model and OpenRouter key are confirmed. Published reference ceiling: ~0.42 pass@1 (\u03c4\u00b2-Bench leaderboard, Feb 2026)."
     }
   ]
 }

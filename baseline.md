@@ -85,6 +85,18 @@ python eval/run_baseline.py --slice held_out --trials 1 --real
 Results appended to `eval/score_log.json` with run IDs `run_140a8c18`
 and `run_a12f55d4`.
 
+## τ²-Bench Package Status
+
+`tau2_bench` package (sierra-research/tau2-bench) requires Python `<3.14,>=3.12`. This environment runs Python 3.14.4, which exceeds the upper bound. The harness falls back to `llm_backed_v1` — direct LLM calls via OpenRouter with keyword-grounded response checking — which replaces the dual-control simulator with real model calls.
+
+**Impact:** `llm_backed_v1` measures whether the LLM produces topically correct responses (keyword match ≥ 2/task), not whether the agent and user reach a shared goal state under dual-control. The held-out pass@1 of 1.000 reflects keyword-match ceiling, not dual-control ceiling. When Python < 3.14 becomes available, `real_run=True` will engage the full τ²-Bench simulator automatically (harness path already wired in `eval/tau2_harness.py` lines 156–176).
+
+To reproduce with tau2-bench once Python version is compatible:
+```bash
+pip install tau2-bench
+python eval/tau2_harness.py --slice held_out --trials 5 --real
+```
+
 ## Reproducibility checklist
 
 - [x] 30/20 dev/held-out partition files checked into repo

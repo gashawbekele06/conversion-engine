@@ -27,17 +27,17 @@ All prospects in this repo are **synthetic**. No real company data or real outbo
 
 4. **Confidence gate at 0.55.** When `confidence_per_signal` for a hiring signal is below 0.55, the agent must use hedged language ("per public records, it appears...") not assertive language. See `agent/compose.py`.
 
-5. **Peer-count gate at 3.** When `competitor_gap["peer_count"] < 3`, suppress all gap trend claims. This is the P-028 target failure mode — currently NOT YET IMPLEMENTED in compose.py. See `method.md` for the fix.
+5. **Peer-count gate at 3.** When `competitor_gap["peer_count"] < 3`, suppress all gap trend claims. Implemented in `agent/compose.py` via `_compose_gap_section()`. Constants `PEER_COUNT_SUPPRESS=3`, `PEER_COUNT_HEDGE=5`. See `method.md` for design and `ablation_results.json` for Delta A (P-028 trigger rate 0.40 → 0.0, p=0.015).
 
 ---
 
 ## Known Limitations (Successor Will Hit These)
 
-### 1. P-028 Gap Over-Claiming — NOT Fixed
-The peer-count gate described in `method.md` is designed but not implemented. `compose.py` currently does not check `peer_count` before generating gap language. Thin-sector prospects (logistics-saas, ml-infra with < 3 peers) will receive over-claimed gap emails. **Priority: HIGH. Fix cost: 0.5 days.**
+### 1. P-028 Gap Over-Claiming — FIXED
+Peer-count gate implemented in `agent/compose.py` via `_compose_gap_section()`. Constants `PEER_COUNT_SUPPRESS=3`, `PEER_COUNT_HEDGE=5`. Structural check: impossible to assert a trend claim when `peer_count < 3`. Delta A: P-028 trigger rate 0.40 → 0.0, Fisher exact p=0.015. See `ablation_results.json`.
 
-### 2. tau2-Bench Not Installed
-`eval/tau2_harness.py` falls back to a keyword-grounded response check because the `tau2` package is not installed. All `pass@1` scores in `eval/score_log.json` reflect keyword matching, not the dual-control Sierra Research benchmark. Install via the submodule or `pip install tau2-bench` when available. **Priority: MEDIUM.**
+### 2. tau2-Bench Not Installed (Python 3.14.4 incompatibility)
+`eval/tau2_harness.py` falls back to `llm_backed_v1` because `tau2_bench` requires Python `<3.14` and this environment runs 3.14.4. All `pass@1` scores reflect keyword-grounded LLM response checks, not dual-control Sierra Research benchmark. Full dual-control scoring available once Python version is compatible. **Priority: MEDIUM. Unblocked by Python version upgrade.**
 
 ### 3. Africa's Talking Sandbox TLS Broken
 `api.sandbox.africastalking.com:443` serves plain HTTP during TLS handshake as of 2026-04-23. Port 80 returns `400 Bad Request` before reading headers. The live API (`AT_USERNAME != "sandbox"`) works when a valid live key is provided but requires account activation for outbound SMS. Mock sink output in `eval/traces/sms_sink.jsonl` is the current evidence of SMS channel correctness. **Priority: LOW (third-party outage).**
