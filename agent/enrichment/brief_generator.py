@@ -28,11 +28,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import crunchbase, jobposts, leadership
+from . import crunchbase, jobposts
 from .ai_maturity import score_ai_maturity
 from .competitor_gap import build_competitor_gap_brief
 from .funding import check_funding
 from .layoffs import check_layoffs_typed
+from .leadership import check_leadership_typed
 from ..tracing import get_tracer
 
 
@@ -106,14 +107,16 @@ def build_hiring_signal_brief(crunchbase_id: str) -> dict[str, Any]:
             confidence=lf_typed.confidence,
         ))
 
-        # --- Leadership change ---
-        ld = leadership.leadership_change(crunchbase_id)
-        ld_confidence = 0.9 if ld and ld.get("within_window") else 0.0
+        # --- Leadership change (typed signal with source + timestamp + confidence) ---
+        ld_signal = check_leadership_typed(crunchbase_id)
+        ld = ld_signal.to_legacy_dict()   # legacy shape for segment classifier
+        ld_confidence = ld_signal.confidence
         data_sources.append(SignalRecord(
-            source="linkedin_public_leadership",
-            status="success" if ld else "no_data",
-            fetched_at=now,
+            source=ld_signal.source,
+            status="success" if ld_signal.detected else "no_data",
+            fetched_at=ld_signal.fetched_at,
             confidence=ld_confidence,
+            error_message=ld_signal.no_change_reason if not ld_signal.detected else None,
         ))
 
         # --- AI maturity ---
@@ -162,7 +165,7 @@ def build_hiring_signal_brief(crunchbase_id: str) -> dict[str, Any]:
                 "funding": funding_signal.to_dict(),
                 "job_velocity": jv,
                 "layoffs_120d": lf,
-                "leadership_change_90d": ld,
+                "leadership_change_90d": ld_signal.to_dict(),
                 "ai_maturity": (
                     {
                         "score": ai.score,
