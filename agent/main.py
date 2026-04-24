@@ -24,8 +24,18 @@ from .orchestrator import Orchestrator, load_synthetic_prospects
 
 
 def _cmd_enrich(args: argparse.Namespace) -> int:
-    brief = build_hiring_signal_brief(args.crunchbase_id)
-    gap = build_competitor_gap_brief(args.crunchbase_id)
+    key = args.crunchbase_id
+    # Accept either a crunchbase_id (cb_sample_*) or a prospect_id (prospect_*)
+    if key.startswith("prospect_"):
+        prospects = load_synthetic_prospects()
+        match = next((p for p in prospects if p["id"] == key), None)
+        if not match:
+            print(f"No prospect {key}; options: {[p['id'] for p in prospects]}",
+                  file=sys.stderr)
+            return 1
+        key = match["crunchbase_id"]
+    brief = build_hiring_signal_brief(key)
+    gap = build_competitor_gap_brief(key)
     print(json.dumps({"brief": brief, "competitor_gap": gap}, indent=2, default=str))
     return 0
 
