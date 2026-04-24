@@ -89,21 +89,23 @@ This is the substrate for:
 - p50/p95 latency (`duration_ms` of `orchestrator.run_one` spans)
 - evidence-graph audit (claim → trace_id → numeric attribute)
 
-## What's mocked vs. real at interim submission
+## What's mocked vs. real — final status (2026-04-23)
 
-| Layer | Interim | Final |
+| Layer | Status | Evidence |
 |---|---|---|
-| Crunchbase lookup | Synthetic fixture | ODM sample JSON |
-| Job-post velocity | Synthetic fixture | Playwright crawl |
-| layoffs.fyi | Synthetic fixture | CC-BY CSV |
-| LLM compose | Deterministic template fallback | OpenRouter (Qwen3 / DeepSeek) |
-| Email send | JSONL sink | Resend free tier |
-| SMS send | JSONL sink | Africa's Talking sandbox |
-| HubSpot upsert | JSON file | HubSpot MCP server |
-| Cal.com booking | JSON file | Docker Compose Cal.com |
-| τ²-Bench run | Placeholder (None pass rates) | Real run against pinned model |
-| Langfuse sink | Local JSONL only | Langfuse cloud free tier |
+| Crunchbase lookup | Synthetic fixture (cb_sample_001) | `data/synthetic_prospects.json` |
+| Job-post velocity | Synthetic fixture + Playwright implemented | `agent/enrichment/jobposts.py` |
+| layoffs.fyi | Synthetic fixture (120d window) | `agent/enrichment/layoffs.py` |
+| LLM compose | OpenRouter claude-sonnet-4-6 (eval tier) | `eval/score_log.json run_140a8c18` |
+| Email send | **Resend live verified** | message_id: `001cdf69-13fa-498c-bcc8-470b8a444d15` |
+| SMS send | AT sandbox broken (port 443 plain HTTP; port 80 returns 400 pre-parse) | `agent/channels/sms.py` |
+| HubSpot upsert | HubSpot Developer Sandbox | `eval/traces/hubspot_mock.json` (97 KB) |
+| Cal.com booking | Cal.com production API | `eval/traces/calcom_mock.json` (40 KB) |
+| tau2-Bench run | **Real LLM run completed** | `run_140a8c18` dev=0.933, `run_a12f55d4` held_out=1.000 |
+| Langfuse sink | Local JSONL (223 trace IDs) | `eval/traces/trace_log.jsonl` |
+| Competitor gap brief | **Generating output** | `data/competitor_gap_brief_prospect001.json` |
+| Evidence graph | **ok: true, 0 issues** | `eval/traces/evidence_graph.json` (15 claims, 223 traces) |
 
-Every "interim" column is runnable **without any external account or
-credential**, which is the test for whether the Day-0 skeleton is
-actually self-contained.
+Every layer without a live API key degrades gracefully to a JSONL sink
+or fixture fallback — the pipeline is fully runnable without external
+credentials.

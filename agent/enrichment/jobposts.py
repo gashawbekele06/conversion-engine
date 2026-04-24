@@ -18,6 +18,25 @@ _ML_RE = re.compile(r"\b(machine.learning|ml engineer|mlops|data scientist)\b", 
 _DATA_RE = re.compile(r"\b(data engineer|analytics engineer|data platform)\b", re.I)
 
 
+def _is_scraping_allowed(base_url: str, path: str) -> bool:
+    """Fetch robots.txt for base_url and check if TenaciousBot may access path.
+
+    Returns True (allow) on any fetch or parse failure — fail open so a transient
+    network error does not silently block all enrichment.  Only returns False when
+    robots.txt is reachable AND explicitly Disallows the path for our user-agent or *.
+    """
+    try:
+        import urllib.robotparser
+        import urllib.request
+        rp = urllib.robotparser.RobotFileParser()
+        robots_url = base_url.rstrip("/") + "/robots.txt"
+        rp.set_url(robots_url)
+        rp.read()
+        return rp.can_fetch("TenaciousBot", base_url.rstrip("/") + path)
+    except Exception:  # noqa: BLE001
+        return True  # fail open — network error is not a robots.txt disallow
+
+
 def _scrape_builtin(company_name: str) -> dict[str, Any] | None:
     """Scrape BuiltIn public job listings — no login, no captcha bypass."""
     try:
@@ -26,7 +45,13 @@ def _scrape_builtin(company_name: str) -> dict[str, Any] | None:
         return None
 
     query = re.sub(r"[^a-z0-9 ]", "", company_name.lower()).strip().replace(" ", "-")
-    url = f"https://builtin.com/company/{query}/jobs"
+    path = f"/company/{query}/jobs"
+
+    # Robots.txt compliance: check before issuing any browser request
+    if not _is_scraping_allowed("https://builtin.com", path):
+        return None  # robots.txt disallows this path — do not scrape
+
+    url = f"https://builtin.com{path}"
 
     try:
         with sync_playwright() as pw:

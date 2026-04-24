@@ -52,6 +52,46 @@ def _system_prompt() -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# Peer-count gate constants (hyperparameters for P-028 fix — method.md §3)
+# ---------------------------------------------------------------------------
+PEER_COUNT_SUPPRESS = 3   # below this: no gap claim
+PEER_COUNT_HEDGE = 5      # below this: hedged language; at/above: full assertion
+
+
+def _compose_gap_section(competitor_gap: dict[str, Any]) -> str:
+    """Return gap paragraph for the email body, gated by peer_count.
+
+    Implements the P-028 fix: when fewer than PEER_COUNT_SUPPRESS viable sector
+    peers exist the statistical basis for a trend claim is absent and the section
+    is suppressed entirely. Between PEER_COUNT_SUPPRESS and PEER_COUNT_HEDGE a
+    hedged form is used. At or above PEER_COUNT_HEDGE the full assertion is used.
+    """
+    peer_count = competitor_gap.get("peer_count", 0)
+    gap_practices = competitor_gap.get("gap_practices", [])
+
+    if peer_count < PEER_COUNT_SUPPRESS or not gap_practices:
+        # Structural gate — suppresses gap language when sample is too small.
+        # Callers receive an empty string; compose_email omits the gap section.
+        return ""
+
+    practice_text = gap_practices[0].get("practice", "") if gap_practices else ""
+    if not practice_text:
+        return ""
+
+    if peer_count < PEER_COUNT_HEDGE:
+        return (
+            f"A small number of companies in your sector are already doing "
+            f"{practice_text} — worth a conversation about whether the timing "
+            f"is right for you."
+        )
+    return (
+        f"{peer_count} companies in your sector show evidence of {practice_text}. "
+        f"Based on public signals, your team is not yet there. "
+        f"That gap is exactly where Tenacious has placed dedicated squads."
+    )
+
+
 def compose_email(
     *,
     brief: dict[str, Any],
@@ -61,10 +101,22 @@ def compose_email(
     tracer = get_tracer()
     with tracer.trace("compose.email", company=brief.get("company_name")) as attrs:
         llm = LLM()
+
+        # Apply peer-count gate before passing competitor_gap to the LLM.
+        # This prevents the model from ever seeing—and then asserting—a gap
+        # claim that lacks statistical grounding (P-028).
+        gap_section = _compose_gap_section(competitor_gap or {}) if competitor_gap else ""
+        peer_count = (competitor_gap or {}).get("peer_count", 0)
+        attrs["peer_count"] = peer_count
+        attrs["gap_suppressed"] = not bool(gap_section)
+
+        # Pass the pre-computed gap section so the LLM uses it verbatim
+        # rather than regenerating it from the raw brief (which has no gate).
         payload = {
             "brief": brief,
             "contact": contact,
             "competitor_gap": competitor_gap,
+            "gap_section_override": gap_section,  # empty string = suppressed
         }
         response = llm.generate(
             system=_system_prompt(),

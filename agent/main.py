@@ -24,8 +24,18 @@ from .orchestrator import Orchestrator, load_synthetic_prospects
 
 
 def _cmd_enrich(args: argparse.Namespace) -> int:
-    brief = build_hiring_signal_brief(args.crunchbase_id)
-    gap = build_competitor_gap_brief(args.crunchbase_id)
+    key = args.crunchbase_id
+    # Accept either a crunchbase_id (cb_sample_*) or a prospect_id (prospect_*)
+    if key.startswith("prospect_"):
+        prospects = load_synthetic_prospects()
+        match = next((p for p in prospects if p["id"] == key), None)
+        if not match:
+            print(f"No prospect {key}; options: {[p['id'] for p in prospects]}",
+                  file=sys.stderr)
+            return 1
+        key = match["crunchbase_id"]
+    brief = build_hiring_signal_brief(key)
+    gap = build_competitor_gap_brief(key)
     print(json.dumps({"brief": brief, "competitor_gap": gap}, indent=2, default=str))
     return 0
 
@@ -63,9 +73,31 @@ def _cmd_serve(args: argparse.Namespace) -> int:  # pragma: no cover
     return 0
 
 
+def _cmd_dry_run(args: argparse.Namespace) -> int:
+    """Run all prospects through the pipeline with kill-switch engaged (sink only).
+
+    Clears LLM API keys so the deterministic fallback template is used —
+    no API credits consumed, each prospect completes in under 1 s.
+    """
+    import os
+    os.environ.pop("OPENROUTER_API_KEY", None)
+    os.environ.pop("ANTHROPIC_API_KEY", None)
+    os.environ["LLM_TIER"] = "dev"  # fallback path, no Anthropic SDK
+    orch = Orchestrator()
+    results = orch.run_all(load_synthetic_prospects())
+    for r in results:
+        print(json.dumps(r.__dict__, indent=2, default=str))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="agent")
-    sub = parser.add_subparsers(dest="cmd", required=True)
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run all prospects through the pipeline (kill-switch engaged, sink only).",
+    )
+    sub = parser.add_subparsers(dest="cmd", required=False)
 
     p_en = sub.add_parser("enrich")
     p_en.add_argument("crunchbase_id")
@@ -78,12 +110,20 @@ def main(argv: list[str] | None = None) -> int:
     p_ra = sub.add_parser("run-all")
     p_ra.set_defaults(func=_cmd_run_all)
 
+    p_dr = sub.add_parser("dry-run", help="Run all prospects with kill-switch (no LLM cost).")
+    p_dr.set_defaults(func=_cmd_dry_run)
+
     p_se = sub.add_parser("serve")
     p_se.add_argument("--host", default="0.0.0.0")
     p_se.add_argument("--port", type=int, default=8080)
     p_se.set_defaults(func=_cmd_serve)
 
     args = parser.parse_args(argv)
+    if getattr(args, "dry_run", False):
+        return _cmd_dry_run(args)
+    if not args.cmd:
+        parser.print_help()
+        return 1
     return args.func(args)
 
 

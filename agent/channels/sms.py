@@ -142,14 +142,50 @@ class SMSChannel:
                 )
 
             try:
-                import africastalking  # type: ignore
-                africastalking.initialize(self.config.at_username, self.config.at_api_key)
-                sms = africastalking.SMS
-                resp = sms.send(body, [route.to])
-                mid = str(resp.get("SMSMessageData", {}).get("Message", "at_ok"))
+                import requests as _req  # type: ignore
+                import urllib3  # type: ignore
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+                is_sandbox = self.config.at_username == "sandbox"
+                # AT sandbox infrastructure is broken as of 2026-04-23:
+                #   - port 443: server sends plain HTTP during TLS handshake → record layer failure
+                #   - port 80: bare 400 Bad Request returned before request headers are read
+                # Both behaviors confirmed via raw TCP, curl (SChannel), and Python ssl module.
+                # HTTP on port 80 with allow_redirects=False is kept as the sandbox path so that
+                # when AT fixes their infrastructure, a 2xx will pass through correctly.
+                # Production uses HTTPS as normal.
+                if is_sandbox:
+                    base = "http://api.sandbox.africastalking.com"
+                    extra = {"allow_redirects": False, "verify": False}
+                else:
+                    base = "https://api.africastalking.com"
+                    extra = {}
+
+                resp = _req.post(
+                    f"{base}/version1/messaging",
+                    headers={
+                        "apiKey": self.config.at_api_key,
+                        "Accept": "application/json",
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    data={
+                        "username": self.config.at_username,
+                        "to": route.to,
+                        "message": body,
+                    },
+                    timeout=15,
+                    **extra,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                mid = (
+                    data.get("SMSMessageData", {})
+                        .get("Recipients", [{}])[0]
+                        .get("messageId", "at_ok")
+                )
                 return SMSSendResult(
                     ok=True, provider="africastalking", to=route.to, is_sink=route.is_sink,
-                    message_id=mid, latency_ms=(time.time() - start) * 1000.0,
+                    message_id=str(mid), latency_ms=(time.time() - start) * 1000.0,
                 )
             except Exception as exc:  # noqa: BLE001
                 return SMSSendResult(

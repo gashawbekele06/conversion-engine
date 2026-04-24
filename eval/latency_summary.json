@@ -1,8 +1,11 @@
 {
-  "n_interactions": 25,
-  "p50_ms": 686.29,
-  "p95_ms": 825.74,
-  "min_ms": 603.14,
-  "max_ms": 905.22,
-  "mean_ms": 711.95
+  "n_interactions": 154,
+  "p50_ms": 743.93,
+  "p95_ms": 14768.95,
+  "min_ms": 30.76,
+  "max_ms": 29627.86,
+  "mean_ms": 4635.11,
+  "source": "eval/traces/trace_log.jsonl",
+  "span_name": "orchestrator.run_one",
+  "note": "p50 reflects template-mode runs; p95 reflects live LLM runs via OpenRouter"
 }
