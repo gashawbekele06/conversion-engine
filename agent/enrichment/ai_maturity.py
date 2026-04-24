@@ -53,6 +53,10 @@ def score_ai_maturity(crunchbase_id: str) -> MaturityScore | None:
         rec = _load_sample().get(crunchbase_id)
         if not rec:
             attrs["found"] = False
+            # Absence of a public record is NOT proof of low AI maturity.
+            # A quiet-but-sophisticated company (no public GitHub, no press) scores
+            # the same as a genuinely low-maturity company. Callers must treat
+            # None as "unknown", not as score=0. See data/seed/icp_definition.md.
             return None
         inputs = rec["signals"].get("ai_maturity_inputs", {})
         points = 0
