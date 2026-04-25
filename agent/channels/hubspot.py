@@ -63,22 +63,38 @@ class HubSpotChannel:
 
                     # Map orchestrator field names → HubSpot internal names.
                     # Only send properties that exist in HubSpot (standard + our custom ones).
+                    # Map orchestrator field names → HubSpot standard property names.
                     _prop_map = {
                         "first_name": "firstname",
                         "last_name": "lastname",
                         "title": "jobtitle",
                         "company_name": "company",
                     }
-                    # Properties allowed in live HubSpot API calls.
-                    # Standard HubSpot names + custom properties created in portal.
-                    # icp_segment explicitly maps ICP classification to the contact record.
-                    _allowed = {"firstname", "lastname", "jobtitle", "company",
-                                "crunchbase_id", "last_enriched_at", "icp_segment"}
+                    # Only send standard HubSpot properties to the live API.
+                    # Custom properties (crunchbase_id, last_enriched_at, icp_segment)
+                    # require manual creation in the HubSpot portal before they can be
+                    # written via API. They are stored in the local mock for dashboard
+                    # display but excluded from the live API call to prevent 400 errors.
+                    _standard_hs = {"firstname", "lastname", "jobtitle", "company",
+                                    "phone", "website", "city", "country",
+                                    "hs_lead_status"}
+                    _stage_to_lead_status = {
+                        "cold_outbound_sent": "ATTEMPTED_TO_CONTACT",
+                        "warm_lead_email_reply": "CONNECTED",
+                        "warm_lead_sms_reply": "CONNECTED",
+                        "discovery_booked": "IN_PROGRESS",
+                        "declined": "UNQUALIFIED",
+                        "unsubscribed": "UNQUALIFIED",
+                    }
                     live_props: dict[str, Any] = {}
                     for k, v in properties.items():
                         mapped = _prop_map.get(k, k)
-                        if mapped in _allowed and v is not None:
+                        if mapped in _standard_hs and v is not None:
                             live_props[mapped] = str(v)
+                    # Auto-derive hs_lead_status from stage for the live API
+                    stage_val = properties.get("stage")
+                    if stage_val and stage_val in _stage_to_lead_status:
+                        live_props["hs_lead_status"] = _stage_to_lead_status[stage_val]
 
                     # Check if contact exists by email
                     search_response = self._client.crm.contacts.search_api.do_search({
@@ -89,7 +105,7 @@ class HubSpotChannel:
                                 "value": live_email,
                             }]
                         }],
-                        "properties": list(_allowed),
+                        "properties": list(_standard_hs),
                         "limit": 1,
                     })
                     results = search_response.results or []
