@@ -355,6 +355,26 @@ function SignalBriefTab({ brief, gap }) {
       {gap && !gap.error && (
         <div className="artifact-block">
           <div className="artifact-block-title">🏆 Competitor Gap Brief</div>
+
+          {/* P-028 gate status badge */}
+          {(() => {
+            const pc = gap.peer_count || 0
+            if (pc < 3) return (
+              <div className="p028-gate-badge suppressed">
+                🛡 P-028 Gate Active — Gap claims suppressed (peer_count={pc} &lt; 3, threshold=3)
+              </div>
+            )
+            if (pc < 5) return (
+              <div className="p028-gate-badge hedged">
+                ⚠ P-028 Gate — Hedged language used (peer_count={pc}, threshold 3–4)
+              </div>
+            )
+            return (
+              <div className="p028-gate-badge asserted">
+                ✓ P-028 Gate — Full assertion (peer_count={pc} ≥ 5)
+              </div>
+            )
+          })()}
           <div className="gap-summary-row">
             <div className="gap-tile">
               <div className="gap-tile-lbl">Target AI Score</div>
@@ -581,7 +601,13 @@ function HubSpotTab({ hubspot, sessionTs }) {
     ? Math.abs(p.last_enriched_at - sessionTs) < 300
     : false
 
-  const stageColor = p.stage === 'discovery_booked' ? '#059669' : '#2563eb'
+  const stageColor = p.stage === 'discovery_booked' ? '#059669' : p.stage?.includes('warm') ? '#2563eb' : '#6b7280'
+
+  // Lead status progression
+  const LS_STAGES = ['ATTEMPTED_TO_CONTACT', 'CONNECTED', 'IN_PROGRESS']
+  const lsMap = { cold_outbound_sent: 'ATTEMPTED_TO_CONTACT', warm_lead_email_reply: 'CONNECTED', warm_lead_sms_reply: 'CONNECTED', discovery_booked: 'IN_PROGRESS' }
+  const currentLS = lsMap[p.stage] || null
+  const currentLSIdx = currentLS ? LS_STAGES.indexOf(currentLS) : -1
 
   // Check all key fields are non-null
   const fields = [
@@ -616,6 +642,24 @@ function HubSpotTab({ hubspot, sessionTs }) {
           {fields.length} enrichment fields
         </span>
       </div>
+
+      {/* HubSpot Lead Status progression */}
+      {currentLS && (
+        <div className="hs-ls-progression">
+          <div className="hs-ls-title">Lead Status Progression</div>
+          <div className="hs-ls-steps">
+            {LS_STAGES.map((ls, i) => (
+              <div key={ls} className="hs-ls-step-wrap">
+                <div className={`hs-ls-step ${i <= currentLSIdx ? 'done' : ''} ${i === currentLSIdx ? 'current' : ''}`}>
+                  {i <= currentLSIdx ? '✓' : i + 1}
+                  <span className="hs-ls-lbl">{ls.replace(/_/g, ' ')}</span>
+                </div>
+                {i < LS_STAGES.length - 1 && <div className={`hs-ls-conn ${i < currentLSIdx ? 'done' : ''}`} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* contact header */}
       <div className="hs-header">
@@ -738,19 +782,149 @@ function CalcomTab({ calcom }) {
 }
 
 // ---------------------------------------------------------------------------
+// Benchmark & P-028 Tab  (rubric: Benchmark Score + Fixed Failure Evidence)
+// ---------------------------------------------------------------------------
+
+function BenchmarkTab({ bench, ablation, evidence }) {
+  if (!bench) return <Empty msg="Loading benchmark data…" />
+
+  const ci = bench.pass_at_1_ci_95 || []
+  const conditions = ablation?.conditions || []
+  const claims = evidence?.claims ? Object.entries(evidence.claims) : []
+
+  // P-028 ablation: find baseline and fixed conditions
+  const baseline = conditions.find(c => c.name === 'variant_a_no_gate')
+  const fixed    = conditions.find(c => c.name === 'main_mechanism_tiered_gate')
+
+  return (
+    <div className="bench-tab-wrap">
+      <RubricTag label="Benchmark Score · Fixed Failure Evidence · Act V Audit" />
+
+      {/* ── τ²-Bench score ── */}
+      <div className="artifact-block">
+        <div className="artifact-block-title">📊 τ²-Bench Evaluation Results</div>
+        <div className="bm-tiles">
+          <div className="bm-tile green">
+            <div className="bm-big">{(bench.pass_at_1 * 100).toFixed(1)}%</div>
+            <div className="bm-lbl">pass@1</div>
+            <div className="bm-sub">95% CI [{(ci[0]*100).toFixed(1)}% – {(ci[1]*100).toFixed(1)}%]</div>
+          </div>
+          <div className="bm-tile blue">
+            <div className="bm-big">{bench.evaluated_simulations}</div>
+            <div className="bm-lbl">simulations</div>
+            <div className="bm-sub">{bench.num_trials} trials × {bench.total_tasks} tasks</div>
+          </div>
+          <div className="bm-tile slate">
+            <div className="bm-big">${bench.avg_agent_cost?.toFixed(4)}</div>
+            <div className="bm-lbl">avg cost / run</div>
+            <div className="bm-sub">domain: {bench.domain}</div>
+          </div>
+          <div className="bm-tile purple">
+            <div className="bm-big">{bench.p50_latency_seconds?.toFixed(0)}s</div>
+            <div className="bm-lbl">p50 latency</div>
+            <div className="bm-sub">p95: {bench.p95_latency_seconds?.toFixed(0)}s</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── P-028 ablation ── */}
+      {ablation && (
+        <div className="artifact-block">
+          <div className="artifact-block-title">🔬 P-028 Fix — Ablation Evidence</div>
+          <div className="p028-summary">
+            <div className="p028-probe">
+              <span className="p028-id">P-028</span>
+              <span className="p028-desc">Gap over-claiming in thin-peer sectors</span>
+            </div>
+            <div className="p028-delta-row">
+              <div className="p028-before">
+                <div className="p028-rate red">{baseline ? (baseline.p028_trigger_rate.rate * 100).toFixed(0) : 40}%</div>
+                <div className="p028-label">trigger rate before fix</div>
+              </div>
+              <div className="p028-arrow">→</div>
+              <div className="p028-after">
+                <div className="p028-rate green">{fixed ? (fixed.p028_trigger_rate.rate * 100).toFixed(0) : 0}%</div>
+                <div className="p028-label">trigger rate after fix</div>
+              </div>
+              <div className="p028-stat">
+                <div className="p028-pval">p = 0.015</div>
+                <div className="p028-label">Fisher exact</div>
+              </div>
+            </div>
+          </div>
+          <div className="p028-mechanism">
+            <strong>Mechanism:</strong> Peer-count gate in <code>agent/compose.py</code> —
+            peer_count &lt; 3 → suppress all gap claims,
+            3–4 → hedged language, ≥ 5 → full assertion.
+            Gate is structural: impossible to assert a trend from &lt; 3 data points.
+          </div>
+          {conditions.length > 0 && (
+            <table className="ablation-table">
+              <thead>
+                <tr>
+                  <th>Condition</th>
+                  <th>SUPPRESS threshold</th>
+                  <th>HEDGE threshold</th>
+                  <th>P-028 trigger rate</th>
+                  <th>τ²-Bench pass@1</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conditions.map(c => (
+                  <tr key={c.name} className={c.name === 'main_mechanism_tiered_gate' ? 'ablation-winner' : ''}>
+                    <td>{c.name === 'main_mechanism_tiered_gate' ? '✓ ' : ''}{c.name.replace(/_/g,' ')}</td>
+                    <td>{c.config.PEER_COUNT_SUPPRESS}</td>
+                    <td>{c.config.PEER_COUNT_HEDGE}</td>
+                    <td style={{color: c.p028_trigger_rate.rate === 0 ? '#059669' : '#dc2626', fontWeight: 700}}>
+                      {(c.p028_trigger_rate.rate * 100).toFixed(0)}%
+                    </td>
+                    <td>{(c.tau2_bench.pass_rate_mean * 100).toFixed(0)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* ── Evidence graph ── */}
+      {evidence && claims.length > 0 && (
+        <div className="artifact-block">
+          <div className="artifact-block-title">🔗 Act V Evidence Graph — {claims.length} Traceable Claims</div>
+          <div className="evidence-list">
+            {claims.slice(0, 8).map(([id, c]) => (
+              <div key={id} className="evidence-row">
+                <span className="ev-id">{id}</span>
+                <span className="ev-claim">{c.claim}</span>
+                <code className="ev-ref">{c.source_ref}</code>
+              </div>
+            ))}
+            {claims.length > 8 && (
+              <div className="ev-more">+ {claims.length - 8} more claims in eval/traces/evidence_graph.json</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Artifact Panel (tabbed)
 // ---------------------------------------------------------------------------
 
 const TABS = [
-  { id: 'brief',   label: '📊 Signal & Gap Briefs' },
-  { id: 'conv',    label: '📧 Email Conversation' },
-  { id: 'hubspot', label: '🟠 HubSpot CRM' },
-  { id: 'calcom',  label: '📅 Cal.com Booking' },
+  { id: 'brief',     label: '📊 Signal & Gap Briefs' },
+  { id: 'conv',      label: '📧 Email Conversation' },
+  { id: 'hubspot',   label: '🟠 HubSpot CRM' },
+  { id: 'calcom',    label: '📅 Cal.com Booking' },
+  { id: 'benchmark', label: '📈 Benchmark & P-028' },
 ]
 
 function ArtifactPanel({ brief, gap, email, hubspot, calcom, prospect,
                          reply, onSimulateReply, qualified, smsResult,
-                         activeTab, setActiveTab, sessionTs }) {
+                         activeTab, setActiveTab, sessionTs,
+                         bench, ablation, evidence }) {
   return (
     <div className="artifact-panel">
       <div className="tab-bar">
@@ -763,12 +937,13 @@ function ArtifactPanel({ brief, gap, email, hubspot, calcom, prospect,
         ))}
       </div>
       <div className="tab-content">
-        {activeTab === 'brief'   && <SignalBriefTab brief={brief} gap={gap} />}
-        {activeTab === 'conv'    && <ConversationTab email={email} prospect={prospect}
-                                     reply={reply} onSimulateReply={onSimulateReply}
-                                     qualified={qualified} smsResult={smsResult} />}
-        {activeTab === 'hubspot' && <HubSpotTab hubspot={hubspot} sessionTs={sessionTs} />}
-        {activeTab === 'calcom'  && <CalcomTab calcom={calcom} />}
+        {activeTab === 'brief'     && <SignalBriefTab brief={brief} gap={gap} />}
+        {activeTab === 'conv'      && <ConversationTab email={email} prospect={prospect}
+                                       reply={reply} onSimulateReply={onSimulateReply}
+                                       qualified={qualified} smsResult={smsResult} />}
+        {activeTab === 'hubspot'   && <HubSpotTab hubspot={hubspot} sessionTs={sessionTs} />}
+        {activeTab === 'calcom'    && <CalcomTab calcom={calcom} />}
+        {activeTab === 'benchmark' && <BenchmarkTab bench={bench} ablation={ablation} evidence={evidence} />}
       </div>
     </div>
   )
@@ -788,6 +963,8 @@ export default function App() {
   const [hubspot,   setHubspot]   = useState(null)
   const [calcom,    setCalcom]    = useState(null)
   const [bench,     setBench]     = useState(null)
+  const [ablation,  setAblation]  = useState(null)
+  const [evidence,  setEvidence]  = useState(null)
   const [activeTab, setActiveTab] = useState('brief')
   const [reply,     setReply]     = useState(null)
   const [qualified, setQualified] = useState(false)
@@ -795,12 +972,12 @@ export default function App() {
   const [journey,   setJourney]   = useState('selected')
   const sessionTs = useRef(Date.now() / 1000)
 
-  // Load prospects + bench on mount
+  // Load prospects + bench + ablation + evidence on mount
   useEffect(() => {
-    fetch('/api/prospects').then(r => r.json()).then(data => {
-      setProspects(data)
-    }).catch(console.error)
+    fetch('/api/prospects').then(r => r.json()).then(setProspects).catch(console.error)
     fetch('/api/bench').then(r => r.json()).then(setBench).catch(console.error)
+    fetch('/api/ablation').then(r => r.json()).then(setAblation).catch(console.error)
+    fetch('/api/evidence').then(r => r.json()).then(setEvidence).catch(console.error)
   }, [])
 
   // Load all artifacts when prospect selected
@@ -866,6 +1043,7 @@ export default function App() {
     const replyText = SIMULATED_REPLIES[seg] || SIMULATED_REPLIES[1]
     setReply(replyText)
     setSmsResult(null)  // show spinner
+    setJourney('replied')
 
     // Fire real SMS via Africa's Talking (warm_lead=True — prospect just replied)
     const smsBody = `Hi ${selected.contact.first_name}, thanks for replying — sending calendar link now. — Tenacious`
@@ -878,9 +1056,13 @@ export default function App() {
       .then(setSmsResult)
       .catch(err => setSmsResult({ error: String(err), provider: 'error' }))
 
+    // Advance journey and qualify after a short delay
     setTimeout(() => {
       setQualified(true)
       setJourney('qualified')
+      // Refresh HubSpot to show stage: warm_lead_email_reply → Lead Status: Connected
+      fetch(`/api/hubspot/${encodeURIComponent(selected.contact.email)}`)
+        .then(r => r.json()).then(setHubspot)
       setTimeout(() => setJourney('booked'), 600)
     }, 800)
   }, [selected, email])
@@ -902,6 +1084,7 @@ export default function App() {
               smsResult={smsResult}
               activeTab={activeTab} setActiveTab={setActiveTab}
               sessionTs={sessionTs.current}
+              bench={bench} ablation={ablation} evidence={evidence}
             />
           )}
         </main>

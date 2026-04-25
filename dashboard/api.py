@@ -166,6 +166,24 @@ async def send_sms(prospect_id: str, payload: dict):
 
 
 # ---------------------------------------------------------------------------
+# Ablation results (P-028 fix evidence)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/ablation")
+def get_ablation():
+    return _load("ablation_results.json")
+
+
+# ---------------------------------------------------------------------------
+# Evidence graph (Act V audit trail)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/evidence")
+def get_evidence():
+    return _load("eval/traces/evidence_graph.json")
+
+
+# ---------------------------------------------------------------------------
 # Pipeline run  (GET with Server-Sent Events so EventSource works from React)
 # ---------------------------------------------------------------------------
 
