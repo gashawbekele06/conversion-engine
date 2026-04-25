@@ -3,7 +3,8 @@
 **To:** Tenacious Executive Team
 **From:** Gashaw Bekele
 **Date:** 2026-04-25
-**Re:** Automated outbound pilot recommendation
+**Re:** The Conversion Engine
+An Automated Lead Generation and Conversion System for Tenacious Consulting and Outsourcing
 
 ---
 
