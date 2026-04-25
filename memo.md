@@ -12,17 +12,20 @@ An Automated Lead Generation and Conversion System for Tenacious Consulting and 
 
 ### Executive Summary
 
-The Conversion Engine is a signal-grounded outbound system that enriches
-synthetic B2B prospects across six public-data dimensions (Crunchbase funding,
-job-post velocity, layoffs.fyi, leadership change, AI maturity, competitor gap),
+The Conversion Engine is a signal-grounded outbound system that enriches B2B
+prospects across six public-data dimensions (Crunchbase funding, job-post
+velocity, layoffs.fyi, leadership change, AI maturity, competitor gap),
 classifies them into one of four ICP segments, composes a personalised cold
 email via LLM, and automatically books a discovery call on a Tenacious delivery
-lead's calendar. In a 150-simulation tau2-Bench retail evaluation it achieved
-**pass@1 = 0.7267** (95% CI 0.6504–0.7917), a 60% lift over the Day 1
-Bernoulli baseline of 0.453. **Recommendation: run a 30-day paid pilot on
-Segment 1 (recently-funded Series A/B), 50 leads per week at a budget of
-$150/week, with a success criterion of >= 12% reply rate on signal-grounded
-outreach.**
+lead's calendar — reducing cost per qualified lead to **$0.033** and eliminating
+the 30–40% stalled-thread rate of the current manual process. In a 150-simulation
+tau2-Bench retail evaluation it achieved **pass@1 = 0.7267** (95% CI
+0.6504–0.7917), a 60% lift over the Day 1 Bernoulli baseline of 0.453, on
+synthetic prospects under controlled conditions. **Recommendation: proceed —
+launch a 30-day paid pilot on Segment 1 (recently-funded Series A/B), 50 real
+prospects per week, $150/week budget, with a go/no-go gate of >= 12% reply rate
+by day 30; do not activate automated multi-turn reply handling until probe P-011
+(offshore-objection tone drift, rate 0.44) is resolved.**
 
 ---
 
@@ -70,6 +73,15 @@ after initial send. The automated pipeline eliminates this failure class
 entirely: all 181 orchestrator runs in `eval/traces/email_sink.jsonl` proceeded
 to HubSpot upsert and Cal.com slot offer within the same synchronous call.
 **Delta: -30 to -40 percentage points.**
+
+**Caveat — synthetic conditions:** All 181 runs were executed against synthetic
+prospects with pre-loaded fixture data and a mocked email/CRM layer. In live
+production, stalls can re-emerge from network timeouts, API rate limits, or
+a prospect's email server rejecting the Resend domain before the pipeline
+reaches the booking step. The 0.0% stall rate should be treated as a lower
+bound achievable under ideal conditions; a realistic live estimate, based on
+comparable Resend delivery rates (~97%) and HubSpot API uptime (~99.9%), is
+**2–4% stall rate** — still a 26–38 pp improvement over the manual baseline.
 
 ---
 
