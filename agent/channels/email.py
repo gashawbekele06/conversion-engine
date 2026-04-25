@@ -101,6 +101,19 @@ class EmailChannel:
                     )
                     r.raise_for_status()
                     mid = r.headers.get("X-Message-Id", f"ms_{int(start*1000)}")
+                # Write to sink for dashboard observability (all live sends recorded)
+                self._write_sink(
+                    {
+                        "provider": provider,
+                        "to": route.to,
+                        "subject": subject,
+                        "body": body,
+                        "metadata": metadata or {},
+                        "is_sink": route.is_sink,
+                        "message_id": mid,
+                        "ts": start,
+                    }
+                )
                 return EmailSendResult(
                     ok=True, provider=provider, to=route.to, is_sink=route.is_sink,
                     message_id=mid, latency_ms=(time.time() - start) * 1000.0,

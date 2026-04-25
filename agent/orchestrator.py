@@ -291,11 +291,11 @@ class Orchestrator:
                 properties={
                     "crunchbase_id": crunchbase_id,
                     "last_enriched_at": brief["last_enriched_at"],
-                    "icp_segment": segment_val,          # explicit ICP segment field
-                    "first_name": prospect["contact"]["first_name"],
-                    "last_name": prospect["contact"]["last_name"],
-                    "title": prospect["contact"]["title"],
-                    "company_name": brief["company_name"],
+                    "icp_segment": segment_val,
+                    "firstname": prospect["contact"]["first_name"],
+                    "lastname": prospect["contact"]["last_name"],
+                    "jobtitle": prospect["contact"]["title"],
+                    "company": brief["company_name"],
                     "segment": segment_val,
                     "segment_confidence": brief.get("segment_assignment", {}).get("confidence"),
                     "ai_maturity_score": (brief["signals"]["ai_maturity"] or {}).get("score"),
