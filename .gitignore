@@ -32,6 +32,11 @@ build/
 dist/
 *.egg-info/
 
+# Dashboard — Node.js
+dashboard/app/node_modules/
+dashboard/app/dist/
+dashboard/app/.vite/
+
 # Playwright
 .playwright/
 
