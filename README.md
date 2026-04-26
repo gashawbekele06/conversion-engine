@@ -409,3 +409,4 @@ Results append to `eval/score_log.json` with stable run IDs.
 3. [`agent/kill_switch.py`](agent/kill_switch.py) — the only outbound gate
 4. [`target_failure_mode.md`](target_failure_mode.md) + [`method.md`](method.md) — P-028 and the fix
 5. [`probes/probe_library.json`](probes/probe_library.json) — all 31 failure modes; read before touching `compose.py`
+6. [`DEMO_GUIDE.md`](DEMO_GUIDE.md) — step-by-step demo guide covering all 5 rubric items
