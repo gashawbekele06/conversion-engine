@@ -2,7 +2,7 @@
 
 _Automated B2B outbound pipeline. Week 10 challenge, 10 Academy TRP1, April 2026._
 
-**Final submission:** 2026-04-23 · **Author:** Gashaw Bekele · [@gashawbekele06](https://github.com/gashawbekele06)
+**Final submission:** 2026-04-26 · **Author:** Gashaw Bekele · [@gashawbekele06](https://github.com/gashawbekele06)
 
 ---
 
@@ -19,19 +19,76 @@ Given a list of synthetic B2B prospects, the Conversion Engine:
 
 Every outbound claim traces to a public signal. Every HubSpot record references a `crunchbase_id` and `last_enriched_at` timestamp. All prospects in this repo are **synthetic**.
 
+A **React + FastAPI dashboard** visualises the full conversion lifecycle in real time — signal briefs, email conversation, HubSpot CRM state, Cal.com booking, and benchmark evidence.
+
 ---
 
 ## Benchmark scores
 
-| Slice | Run ID | Model | pass@1 | Cost |
-|---|---|---|---|---|
-| Dev (30 tasks) | `run_140a8c18` | claude-sonnet-4-6 | **0.933** | $0.041 |
-| Held-out (20 tasks) | `run_a12f55d4` | claude-sonnet-4-6 | **1.000** | $0.023 |
-| Simulation baseline | `run_14e99ac7` | Bernoulli(p=0.40) | 0.453 | $0.00 |
-
-P-028 gap-over-claiming trigger rate: **0.40 → 0.00** after peer-count gate (Fisher exact p=0.015). See [`ablation_results.json`](ablation_results.json) and [`method.md`](method.md).
+| Metric | Value |
+|---|---|
+| pass@1 | **72.7%** (95% CI: 65.0–79.2%) |
+| Simulations | 150 |
+| Avg cost / run | **$0.0199** |
+| p50 latency | **106 s** |
+| p95 latency | 552 s |
+| P-028 trigger rate | **0.40 → 0.00** (Fisher exact p = 0.015) |
 
 > **τ²-Bench note:** `tau2_bench` requires Python <3.14; this environment runs 3.14.4. The harness falls back to `llm_backed_v1` (keyword-grounded LLM checks). Full dual-control scoring available once a compatible Python version is available. See [`baseline.md`](baseline.md).
+
+---
+
+## Dashboard
+
+A live React + FastAPI dashboard runs the full pipeline end-to-end and visualises every stage of the conversion lifecycle.
+
+### Start the dashboard
+
+```bash
+# Terminal 1 — FastAPI backend (from conversion-engine/ root)
+.venv/Scripts/uvicorn dashboard.api:app --reload --port 8000
+
+# Terminal 2 — Vite/React frontend (from dashboard/app/)
+cd dashboard/app && npm run dev
+```
+
+Open `http://localhost:5173`.
+
+### Dashboard tabs
+
+| Tab | What it shows |
+|---|---|
+| **Signal & Gap Briefs** | Hiring signal brief with 5 per-signal confidence bars · AI Maturity score (X/3) · Competitor gap brief · P-028 gate badge (suppressed / hedged / full assertion) |
+| **Email Conversation** | Send receipt (provider, MSG ID, to/from) · Email body grounded in signal brief · Simulate Prospect Reply button · SMS warm-lead follow-up receipt (Africa's Talking) |
+| **HubSpot CRM** | Populated contact record · Lead Status Progression stepper (Attempted → Connected → In Progress) · ⚡ session-current `last_enriched_at` timestamp · Health pills |
+| **Cal.com Booking** | Confirmed booking banner · Event type, date, time, attendee · Booking ID · Cal.com confirmation email preview |
+| **📈 Benchmark & P-028** | 4 metric tiles (72.7% / 150 / $0.0199 / 106 s) · P-028 delta row (40% → 0%, p=0.015) · Ablation table · Evidence graph (15 traceable claims) |
+
+### Journey Banner
+
+The 6-stage banner at the top of the dashboard advances as the pipeline runs:
+
+```
+Prospect Selected → Brief Generated → Email Sent → Prospect Replied → Qualified → Discovery Call Booked
+```
+
+Each stage corresponds to a discrete CRM event written to HubSpot.
+
+### API endpoints
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/prospects` | All 5 synthetic prospects |
+| `GET /api/brief/{crunchbase_id}` | Hiring signal brief (live-generated) |
+| `GET /api/gap/{crunchbase_id}` | Competitor gap brief |
+| `GET /api/email/{prospect_id}` | Latest email for a prospect |
+| `GET /api/hubspot/{email}` | HubSpot contact record |
+| `GET /api/calcom/{email}` | Cal.com booking |
+| `GET /api/bench` | Benchmark scores |
+| `GET /api/ablation` | P-028 ablation results |
+| `GET /api/evidence` | Evidence graph (15 claims) |
+| `GET /api/run/{prospect_id}` | Run full pipeline (SSE stream) |
+| `POST /api/sms-send/{prospect_id}` | Send SMS warm-lead follow-up |
 
 ---
 
@@ -111,7 +168,7 @@ cp .env.example .env
 # Required for real LLM calls: OPENROUTER_API_KEY
 # Leave TENACIOUS_LIVE unset — all outbound routes to staff sink
 
-# 3. Run smoke tests (no API keys required)
+# 3. Run all tests (no API keys required)
 pytest tests/ -v                            # expect: 69 passed
 
 # 4. Dry run — zero cost, zero LLM calls, all 5 prospects
@@ -132,6 +189,11 @@ python eval/run_baseline.py --slice dev --trials 1 --real
 
 # 9. Inbound webhook server (for real email/SMS reply handling)
 python -m agent.main serve --port 8080
+
+# 10. Dashboard — FastAPI backend + React frontend
+.venv/Scripts/uvicorn dashboard.api:app --reload --port 8000   # Terminal 1
+cd dashboard/app && npm run dev                                 # Terminal 2
+# → open http://localhost:5173
 ```
 
 ---
