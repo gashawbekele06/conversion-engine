@@ -276,6 +276,8 @@ cold_outbound ──email_reply_positive──▶ warm_email ──sms_reply─�
 ```
 conversion-engine/
 ├── README.md
+├── DEMO_GUIDE.md                 ← step-by-step rubric-mapped demo guide
+├── DEMO_SCRIPT.md                ← final 8-minute presentation script
 ├── baseline.md                   ← Act I: τ²-Bench scores + reproducibility checklist
 ├── method.md                     ← Mechanism design: peer-count gate + 3 ablations
 ├── target_failure_mode.md        ← P-028 selected, business cost arithmetic
@@ -285,6 +287,14 @@ conversion-engine/
 ├── CLAUDE.md                     ← Inheritor context (read this first)
 ├── requirements.txt
 ├── .env.example
+│
+├── dashboard/
+│   ├── api.py                    ← FastAPI backend (11 endpoints, SSE pipeline stream)
+│   └── app/                      ← Vite + React frontend
+│       └── src/
+│           ├── App.jsx           ← Main app: 5 tabs, Journey Banner, pipeline runner
+│           ├── App.css           ← Dashboard styles
+│           └── main.jsx          ← React entry point
 │
 ├── agent/
 │   ├── config.py                 ← env → Config dataclass
@@ -301,7 +311,7 @@ conversion-engine/
 │   ├── channels/
 │   │   ├── email.py              ← Resend / mock; kill-switched
 │   │   ├── sms.py                ← Africa's Talking / mock; email-reply warm-lead check
-│   │   ├── hubspot.py            ← upsert + engagement log + meeting mark
+│   │   ├── hubspot.py            ← upsert + engagement log + hs_lead_status auto-derive
 │   │   └── calcom.py             ← slot offer + booking + context brief
 │   │
 │   └── enrichment/
@@ -333,20 +343,24 @@ conversion-engine/
 │   ├── dev_slice.json            ← 30-task dev partition
 │   ├── held_out_slice.json       ← 20-task sealed partition
 │   └── traces/
-│       ├── trace_log.jsonl       ← all spans (5191+ rows)
+│       ├── trace_log.jsonl       ← all spans (5000+ rows)
 │       ├── inbox.jsonl           ← inbound email/SMS replies
 │       ├── email_sink.jsonl
 │       ├── sms_sink.jsonl
 │       ├── jobpost_snapshots.jsonl  ← 60-day velocity snapshot store
 │       ├── hubspot_mock.json
-│       └── calcom_mock.json
+│       ├── calcom_mock.json
+│       ├── competitor_gap_brief.json
+│       └── evidence_graph.json
 │
 ├── probes/
 │   ├── probe_library.json        ← 31 adversarial probes, 10 categories
 │   └── failure_taxonomy.md      ← trigger rates, root causes, fix status, cost ranking
 │
 └── tests/
-    └── test_smoke.py             ← 69 tests, all passing
+    ├── test_smoke.py             ← 7 end-to-end smoke tests
+    └── test_unit.py              ← 62 unit tests: P-028 gates, confidence bands,
+                                     kill-switch matrix, bench constraints, HubSpot fields
 ```
 
 ---
