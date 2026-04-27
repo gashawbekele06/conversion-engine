@@ -35,6 +35,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Serve pre-built React frontend from dashboard/app/dist ──────────────────
+# Any request that is NOT an /api/* route falls through to the React SPA.
+DIST = Path(__file__).parent / "app" / "dist"
+if DIST.is_dir():
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+
+    # Mount static assets (JS/CSS bundles)
+    app.mount("/assets", StaticFiles(directory=str(DIST / "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        """Return index.html for every non-API path so React Router works."""
+        return FileResponse(str(DIST / "index.html"))
+
 
 def _load(path: str) -> dict | list:
     return json.loads((BASE / path).read_text(encoding="utf-8"))
@@ -202,8 +217,12 @@ PIPELINE_STEPS = [
 STEP_IDS = [s[0] for s in PIPELINE_STEPS]
 
 
-def _run_pipeline_sync(prospect_id: str) -> dict:
-    """Run the full orchestrator synchronously — called in a thread."""
+def _run_pipeline_sync(prospect_id: str, simulate_reply: bool = False) -> dict:
+    """Run the full orchestrator synchronously — called in a thread.
+
+    simulate_reply=False (default): sends email, waits for real reply via webhook.
+    simulate_reply=True: full demo loop including simulated reply + Cal.com booking.
+    """
     prospects = load_synthetic_prospects()
     match = next(
         (p for p in prospects if p["id"] == prospect_id or p.get("crunchbase_id") == prospect_id),
@@ -212,23 +231,76 @@ def _run_pipeline_sync(prospect_id: str) -> dict:
     if not match:
         return {"error": f"Prospect {prospect_id} not found"}
     orch = Orchestrator()
-    result = orch.run_one(match, simulate_reply=True)
+    result = orch.run_one(match, simulate_reply=simulate_reply)
     return result.__dict__
 
 
+# ---------------------------------------------------------------------------
+# Simulate inbound reply  (fires webhook handler directly — no real email)
+# Used by the dashboard "Simulate Reply" button for the demo
+# ---------------------------------------------------------------------------
+
+@app.post("/api/reply/{prospect_id}")
+async def simulate_reply_endpoint(prospect_id: str, payload: dict | None = None):
+    """Fire a synthetic reply through the registered email reply handlers.
+
+    This mirrors what Resend sends to POST /webhooks/email when a prospect
+    manually replies.  Use this button in the dashboard to advance the
+    pipeline past 'awaiting_reply' without needing a live Resend domain.
+    """
+    from agent.webhooks import _email_reply_handlers, _unwrap_inbound_payload
+
+    prospects = load_synthetic_prospects()
+    match = next(
+        (p for p in prospects if p["id"] == prospect_id),
+        None,
+    )
+    if not match:
+        return {"error": f"Prospect {prospect_id} not found"}
+
+    body_text = (payload or {}).get("text") or "Interested — worth 30 minutes."
+    inbound = {
+        "type": "email.received",
+        "data": {
+            "from": match["contact"]["email"],
+            "subject": "Re: Your outreach",
+            "text": body_text,
+        },
+    }
+    flat = _unwrap_inbound_payload(inbound)
+    kind = "reply_positive"
+
+    results = []
+    for handler in _email_reply_handlers:
+        try:
+            handler(kind=kind, from_addr=flat["from"],
+                    subject=flat["subject"], payload=flat)
+            results.append("ok")
+        except Exception as exc:
+            results.append(str(exc))
+
+    return {"ok": True, "kind": kind, "from": flat["from"], "handler_results": results}
+
+
 @app.get("/api/run/{prospect_id}")
-async def run_pipeline(prospect_id: str):
+async def run_pipeline(prospect_id: str, demo: bool = False):
+    """Stream pipeline progress via Server-Sent Events.
+
+    ?demo=1  → simulate_reply=True  (full loop including booking, for demo video)
+    default  → simulate_reply=False (send email, stage = awaiting_reply)
+               Use POST /api/reply/{prospect_id} to advance to booking.
+    """
     async def generate():
-        # Stream each step as "running" while the pipeline warms up
+        # Stream each step label as "running" so the UI shows progress
         for step_id, label in PIPELINE_STEPS:
             yield f"data: {json.dumps({'type': 'step', 'step': step_id, 'label': label, 'status': 'running'})}\n\n"
             await asyncio.sleep(0.3)
 
-        # Run the full pipeline in a thread (it's synchronous I/O)
+        # Run the full pipeline in a background thread (synchronous I/O)
         try:
             result = await asyncio.wait_for(
-                asyncio.to_thread(_run_pipeline_sync, prospect_id),
-                timeout=300,  # 5 minutes — allows for LLM + Resend + Cal.com calls
+                asyncio.to_thread(_run_pipeline_sync, prospect_id, demo),
+                timeout=300,  # 5 min — allows for LLM + Resend + Cal.com calls
             )
         except asyncio.TimeoutError:
             result = {"error": "Pipeline timed out after 5 minutes"}
