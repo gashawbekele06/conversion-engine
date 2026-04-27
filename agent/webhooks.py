@@ -61,6 +61,49 @@ def register_email_reply_handler(fn) -> None:
     _email_reply_handlers.append(fn)
 
 
+def _extract_email_address(raw: str | dict | None) -> str:
+    """Return a bare email address from whatever format the provider sends.
+
+    Providers differ:
+      Resend inbound  →  "Name <email@example.com>"  (string)
+      MailerSend      →  {"email": "...", "name": "..."}  (object)
+      Mock / tests    →  "email@example.com"  (plain string)
+    """
+    if not raw:
+        return ""
+    if isinstance(raw, dict):
+        return raw.get("email", "")
+    # Strip display name:  "Name <email>" → "email"
+    import re as _re
+    m = _re.search(r"<([^>]+)>", raw)
+    return m.group(1).strip() if m else raw.strip()
+
+
+def _unwrap_inbound_payload(payload: dict) -> dict:
+    """Normalise provider-specific inbound email envelopes to a flat dict.
+
+    Resend inbound wraps the email under a ``data`` key with
+    ``type == "email.received"``.  MailerSend and our mock tests send flat
+    payloads directly.  This function always returns a flat dict with the
+    keys ``from``, ``subject``, ``text``, ``html``.
+    """
+    if payload.get("type") == "email.received" and isinstance(payload.get("data"), dict):
+        return payload["data"]
+    return payload
+
+
+def _verify_resend_inbound_signature(body: bytes, signature_header: str | None) -> bool:
+    """Verify Resend inbound webhook signature (svix-style HMAC-SHA256)."""
+    secret = os.getenv("RESEND_WEBHOOK_SECRET", "")
+    if not secret:
+        return True  # not configured → skip (dev mode)
+    if not signature_header:
+        return False
+    # Resend uses the same scheme as Svix: header value is the raw hex digest.
+    expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature_header.lstrip("sha256="))
+
+
 def _verify_calcom_signature(body: bytes, signature_header: str | None) -> bool:
     """Verify Cal.com X-Cal-Signature-256 header (HMAC-SHA256 over raw body)."""
     secret = os.getenv("CALCOM_WEBHOOK_SECRET", "")
@@ -116,13 +159,30 @@ def build_app():  # pragma: no cover — smoke-tested separately
     # ------------------------------------------------------------------ email
     @app.post("/webhooks/email")
     async def email_webhook(request: Request) -> dict[str, Any]:
+        body = await request.body()
+
+        # Optional Resend inbound signature verification.
+        # Set RESEND_WEBHOOK_SECRET in .env to enable; leave unset for dev.
+        sig = request.headers.get("svix-signature") or request.headers.get("x-resend-signature")
+        if not _verify_resend_inbound_signature(body, sig):
+            raise HTTPException(status_code=401, detail="invalid resend webhook signature")
+
         try:
-            payload = await request.json()
+            raw_payload = json.loads(body)
         except Exception:
             raise HTTPException(status_code=422, detail="malformed JSON payload")
 
-        from_addr = payload.get("from") or payload.get("sender")
+        # Normalise provider-specific envelope:
+        #   Resend inbound  → {type: "email.received", data: {...}}
+        #   MailerSend      → flat dict with from as object
+        #   Mock / tests    → flat dict with from as plain string
+        payload = _unwrap_inbound_payload(raw_payload)
+
+        # Extract bare email address — handles display-name strings and objects
+        raw_from = payload.get("from") or payload.get("sender")
+        from_addr = _extract_email_address(raw_from)
         subject = payload.get("subject", "")
+
         if not from_addr:
             raise HTTPException(status_code=422, detail="missing required field: from")
 
@@ -130,16 +190,34 @@ def build_app():  # pragma: no cover — smoke-tested separately
         with tracer.trace("webhook.email", subject=subject) as attrs:
             attrs["from"] = from_addr
 
-            # Classify inbound reply for downstream routing
+            # Classify inbound reply for downstream routing.
+            # Check bounce first (structural field) so body keywords don't
+            # misclassify a bounce notification that contains the word "yes".
+            event_type_str = (raw_payload.get("type") or "").lower()
+            is_bounce = (
+                "bounce" in event_type_str
+                or bool(payload.get("bounce"))
+                or bool(payload.get("bounced"))
+            )
             body_text = (payload.get("text") or payload.get("html") or "").lower()
-            if any(w in body_text for w in ("unsubscribe", "opt out", "opt-out", "remove me", "stop emailing")):
-                kind = "unsubscribe"
-            elif any(w in body_text for w in ("interested", "tell me more", "yes", "sure", "sounds good", "let's talk")):
-                kind = "reply_positive"
-            elif any(w in body_text for w in ("not interested", "no thanks", "not right now", "pass")):
-                kind = "reply_negative"
-            elif "bounce" in (payload.get("type") or "").lower() or payload.get("bounce"):
+
+            if is_bounce:
                 kind = "bounce"
+            elif any(w in body_text for w in (
+                "unsubscribe", "opt out", "opt-out", "remove me", "stop emailing"
+            )):
+                kind = "unsubscribe"
+            elif any(w in body_text for w in (
+                "interested", "tell me more", "yes", "sure", "sounds good",
+                "let's talk", "love to chat", "worth a call", "30 minutes",
+                "schedule", "book", "calendar",
+            )):
+                kind = "reply_positive"
+            elif any(w in body_text for w in (
+                "not interested", "no thanks", "not right now", "pass",
+                "remove", "unsubscribe",
+            )):
+                kind = "reply_negative"
             else:
                 kind = "reply_other"
 
@@ -155,12 +233,14 @@ def build_app():  # pragma: no cover — smoke-tested separately
 
             # Dispatch to registered downstream handlers.
             # Transport concerns end here; business logic lives in the handlers.
+            # Handlers must not raise — errors are swallowed to ensure 200 OK
+            # is always returned so the email provider does not retry delivery.
             for handler in _email_reply_handlers:
                 try:
                     handler(kind=kind, from_addr=from_addr,
                             subject=subject, payload=payload)
                 except Exception:  # noqa: BLE001
-                    pass  # handler errors must not fail the webhook response
+                    pass
 
             return {"ok": True, "kind": kind}
 

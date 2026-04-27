@@ -51,6 +51,20 @@ class Orchestrator:
         self._sms_phone_email: dict[str, str] = {}
         # Maps prospect email → context brief so the email reply handler can offer slots.
         self._email_brief: dict[str, dict] = {}
+        # Reply-address → prospect-email lookup.
+        #
+        # When the kill-switch routes outbound to a staff sink (e.g.
+        # gashawbekelek@gmail.com) the reply arrives with
+        #   from: gashawbekelek@gmail.com
+        # but _email_brief is keyed on the synthetic address
+        #   marcus@glenmark.example
+        # Without this map the email reply handler would silently drop the
+        # reply and Cal.com would never be booked.
+        #
+        # Populated in run_one() immediately after the email is sent:
+        #   _reply_lookup[email_res.to]  = prospect_email   (sink address)
+        #   _reply_lookup[prospect_email] = prospect_email  (direct address)
+        self._reply_lookup: dict[str, str] = {}
         self._register_sms_reply_handler()
         self._register_email_reply_handler()
 
@@ -145,73 +159,91 @@ class Orchestrator:
           unsubscribe     → log unsubscribe note, update stage to unsubscribed
           bounce          → log bounce note
           reply_other     → log engagement for human review
+
+        Sink-routing note
+        -----------------
+        When the kill-switch routes outbound to a staff-sink address (e.g.
+        gashawbekelek@gmail.com) the inbound reply arrives with
+          from_addr = "gashawbekelek@gmail.com"
+        but _email_brief / HubSpot contacts are keyed on the synthetic
+        prospect address (e.g. "marcus@glenmark.example").
+
+        _reply_lookup resolves from_addr → prospect_email so all downstream
+        operations (HubSpot, Cal.com, brief lookup) target the correct record.
         """
         def _on_email_reply(kind: str, from_addr: str, subject: str, payload: dict) -> None:
+            # Resolve the real prospect email — handles sink-routing case where
+            # from_addr is a staff/test inbox rather than the prospect address.
+            prospect_email = self._reply_lookup.get(from_addr, from_addr)
+
             if kind == "unsubscribe":
                 self.hs.log_engagement(
-                    email=from_addr,
+                    email=prospect_email,
                     kind="NOTE",
                     body="Prospect unsubscribed via email reply.",
-                    metadata={"subject": subject, "direction": "inbound"},
+                    metadata={"subject": subject, "direction": "inbound",
+                              "reply_from": from_addr},
                 )
                 self.hs.upsert_contact(
-                    email=from_addr,
+                    email=prospect_email,
                     properties={"stage": "unsubscribed"},
                 )
                 return
 
             if kind == "bounce":
                 self.hs.log_engagement(
-                    email=from_addr,
+                    email=prospect_email,
                     kind="NOTE",
                     body="Email bounced — address may be invalid.",
-                    metadata={"subject": subject, "direction": "inbound"},
+                    metadata={"subject": subject, "direction": "inbound",
+                              "reply_from": from_addr},
                 )
                 return
 
             # Log all other reply kinds (positive, negative, other)
             self.hs.log_engagement(
-                email=from_addr,
+                email=prospect_email,
                 kind="EMAIL",
                 body=payload.get("text") or payload.get("html") or "",
-                metadata={"subject": subject, "direction": "inbound", "kind": kind},
+                metadata={"subject": subject, "direction": "inbound",
+                          "kind": kind, "reply_from": from_addr},
             )
 
             if kind == "reply_positive":
-                # Advance CRM stage
+                # Advance CRM stage — prospect has manually replied
                 self.hs.upsert_contact(
-                    email=from_addr,
+                    email=prospect_email,
                     properties={"stage": "warm_lead_email_reply"},
                 )
                 # Bench gate: verify capacity before offering slots
-                brief = self._email_brief.get(from_addr, {})
+                brief = self._email_brief.get(prospect_email, {})
                 stack = brief.get("recommended_stack", "python")
                 ok, reason = can_commit(stack, engineers_requested=1)
                 if not ok:
                     self.hs.log_engagement(
-                        email=from_addr,
+                        email=prospect_email,
                         kind="NOTE",
                         body=f"Bench capacity gate blocked slot offer: {reason}",
                         metadata={"stack": stack, "direction": "internal"},
                     )
                     return  # route to human — do not offer slots
-                # Offer and book first available slot
+                # Offer and book first available slot — triggered by real reply only
                 try:
                     slots = self.cal.offer_slots(
-                        prospect_email=from_addr,
+                        prospect_email=prospect_email,
                         timezone="UTC",
                         count=3,
                     )
                     if slots:
                         booking = self.cal.book(
-                            prospect_email=from_addr,
-                            prospect_name=from_addr,
+                            prospect_email=prospect_email,
+                            prospect_name=prospect_email,
                             when_iso=slots[0],
                             timezone="UTC",
                             context_brief=brief,
                         )
                         self._link_booking_to_hubspot(
-                            email=from_addr,
+                            email=prospect_email,
                             when_iso=slots[0],
                             booking_id=booking["id"],
                         )
@@ -220,7 +252,7 @@ class Orchestrator:
 
             elif kind == "reply_negative":
                 self.hs.upsert_contact(
-                    email=from_addr,
+                    email=prospect_email,
                     properties={"stage": "declined"},
                 )
 
@@ -230,9 +262,25 @@ class Orchestrator:
         self,
         prospect: dict[str, Any],
         *,
-        simulate_reply: bool = True,
+        simulate_reply: bool = False,
         book_slot_index: int = 0,
     ) -> ThreadResult:
+        """Run the full outbound pipeline for one prospect.
+
+        Cal.com booking is NEVER triggered automatically.  It is only
+        triggered when a real (or simulated) prospect reply arrives via
+        the email or SMS webhook and is classified as ``reply_positive``
+        by ``_on_email_reply()`` / ``_on_sms_reply()``.
+
+        Args:
+            prospect:        Prospect dict from synthetic_prospects.json.
+            simulate_reply:  If True, immediately simulate a positive reply and
+                             book a slot — used only in the eval harness and
+                             CLI testing (``run-one --simulate``).  Never set
+                             True in production; real replies must flow through
+                             POST /webhooks/email.
+            book_slot_index: Which slot index to book when simulate_reply=True.
+        """
         tracer = get_tracer()
         with tracer.trace("orchestrator.run_one", prospect_id=prospect["id"]) as attrs:
             start = time.time()
@@ -250,8 +298,8 @@ class Orchestrator:
             brief = build_hiring_signal_brief(crunchbase_id)
             gap = build_competitor_gap_brief(crunchbase_id)
 
-            # Cache brief by email so the email reply handler can reference it
-            # when offering Cal.com slots after a positive reply.
+            # Cache brief by prospect email so the email reply handler can
+            # reference it when offering Cal.com slots after a positive reply.
             self._email_brief[email] = brief
 
             # 3. Compose
@@ -261,18 +309,37 @@ class Orchestrator:
                 competitor_gap=gap,
             )
 
-            # 4. Send (synthetic=True → always routes to sink)
+            # 4. Send (synthetic=True → always routes to sink).
+            #
+            # reply_to is set from config so the prospect's email client sends
+            # their reply to a Resend-inbound-routed mailbox that forwards to
+            # POST /webhooks/email.  Without this header a prospect clicking
+            # "Reply" would reply to onboarding@resend.dev (a no-reply address)
+            # and the Cal.com booking webhook would never fire.
+            reply_to = self.cfg.reply_to_email or None
             email_res = self.email.send(
                 to=prospect["contact"]["email"],
                 subject=composed.subject,
                 body=composed.body,
                 synthetic=True,
+                reply_to=reply_to,
                 metadata={
                     "prospect_id": prospect["id"],
                     "confidence_band": composed.confidence_band,
                     "segment": brief.get("segment_assignment", {}).get("segment"),
                 },
             )
+
+            # Register reply-address → prospect-email mapping.
+            #
+            # email_res.to is the address the email was actually delivered to —
+            # when the kill-switch routes to a staff sink (e.g.
+            # gashawbekelek@gmail.com) this differs from the synthetic prospect
+            # address (marcus@glenmark.example).  Both are registered so the
+            # email reply handler can look up the correct prospect regardless of
+            # which address appears in the inbound "from" field.
+            self._reply_lookup[email_res.to] = email    # sink → prospect
+            self._reply_lookup[email] = email            # direct → prospect
 
             # 5. HubSpot upsert (enforces required crunchbase_id + last_enriched_at)
             #
@@ -299,7 +366,9 @@ class Orchestrator:
                     "segment": segment_val,
                     "segment_confidence": brief.get("segment_assignment", {}).get("confidence"),
                     "ai_maturity_score": (brief["signals"]["ai_maturity"] or {}).get("score"),
-                    "stage": "cold_outbound_sent",
+                    # awaiting_reply: email sent, waiting for prospect to
+                    # manually reply before any Cal.com booking is triggered.
+                    "stage": "awaiting_reply",
                 },
             )
 
@@ -315,6 +384,12 @@ class Orchestrator:
 
             booking_id: str | None = None
             if simulate_reply:
+                # ── EVAL / TEST PATH ONLY ──────────────────────────────────
+                # simulate_reply=True is used exclusively by the eval harness
+                # and the `run-one --simulate` CLI flag.  In production this
+                # block is NEVER reached; booking is only triggered from
+                # _on_email_reply() after a real prospect replies.
+                #
                 # 7. Bench gate: verify capacity before committing to a slot offer.
                 # Infer required stack from brief; default to "python" if not specified.
                 stack = brief.get("recommended_stack", "python")
@@ -398,10 +473,21 @@ class Orchestrator:
             metadata={"calcom_booking_id": booking_id},
         )
 
-    def run_all(self, prospects: list[dict[str, Any]]) -> list[ThreadResult]:
+    def run_all(
+        self,
+        prospects: list[dict[str, Any]],
+        *,
+        simulate_reply: bool = False,
+    ) -> list[ThreadResult]:
+        """Run the pipeline for every prospect.
+
+        Production default: ``simulate_reply=False``.
+        Pass ``simulate_reply=True`` only from the eval harness or CLI
+        ``--simulate`` flag — never in live outbound.
+        """
         results = []
         for p in prospects:
-            results.append(self.run_one(p, simulate_reply=True))
+            results.append(self.run_one(p, simulate_reply=simulate_reply))
         return results
 
 

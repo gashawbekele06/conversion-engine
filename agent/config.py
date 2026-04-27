@@ -50,6 +50,14 @@ class Config:
     llm_model_dev: str = field(default_factory=lambda: os.getenv("LLM_MODEL_DEV", "qwen/qwen3-next-80b-a3b"))
     llm_model_eval: str = field(default_factory=lambda: os.getenv("LLM_MODEL_EVAL", "claude-sonnet-4-6"))
 
+    # ---- Reply routing ----
+    # Inbound reply address — set this to a Resend-inbound-routed mailbox so
+    # prospect replies are forwarded to POST /webhooks/email.  When unset the
+    # system still works (prospects can reply to the sending address if Resend
+    # inbound routing is configured on that domain), but explicit reply_to is
+    # the safest way to guarantee the webhook receives every reply.
+    reply_to_email: str = field(default_factory=lambda: os.getenv("TENACIOUS_REPLY_TO", ""))
+
     # ---- Staff sink ----
     staff_sink_email: str = field(default_factory=lambda: os.getenv("STAFF_SINK_EMAIL", "challenge-sink@tenacious.internal"))
     staff_sink_sms: str = field(default_factory=lambda: os.getenv("STAFF_SINK_SMS", "+10000000000"))

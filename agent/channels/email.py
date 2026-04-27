@@ -44,7 +44,22 @@ class EmailChannel:
         body: str,
         synthetic: bool = True,
         metadata: dict[str, Any] | None = None,
+        reply_to: str | None = None,
     ) -> EmailSendResult:
+        """Send an outbound email.
+
+        Args:
+            to:        Recipient address (routed through kill-switch).
+            subject:   Email subject line.
+            body:      HTML body.
+            synthetic: Always True for prospect outreach — routes to sink.
+            metadata:  Arbitrary trace metadata written to the sink record.
+            reply_to:  If set, the Reply-To header is populated with this
+                       address.  This MUST point to a Resend-inbound-routed
+                       mailbox whose domain forwards to POST /webhooks/email,
+                       otherwise prospect replies will never reach the system
+                       and Cal.com booking will never be triggered.
+        """
         tracer = get_tracer()
         with tracer.trace("email.send", subject=subject, synthetic=synthetic) as attrs:
             route = self.killswitch.resolve("email", to, synthetic=synthetic)
@@ -63,6 +78,7 @@ class EmailChannel:
                         "to": route.to,
                         "subject": subject,
                         "body": body,
+                        "reply_to": reply_to,
                         "metadata": metadata or {},
                         "is_sink": route.is_sink,
                         "ts": start,
@@ -81,10 +97,20 @@ class EmailChannel:
                     resend.api_key = self.config.resend_api_key
                     # Use Resend's verified test sender when routing to sink/unverified domains
                     from_addr = "Tenacious <onboarding@resend.dev>"
-                    resp = resend.Emails.send(
-                        {"from": from_addr, "to": [route.to],
-                         "subject": subject, "html": body}
-                    )
+                    resend_payload: dict[str, Any] = {
+                        "from": from_addr,
+                        "to": [route.to],
+                        "subject": subject,
+                        "html": body,
+                    }
+                    # reply_to MUST be set so prospect replies route to the
+                    # webhook at POST /webhooks/email rather than bouncing off
+                    # the no-reply Resend sender address.  Without this header
+                    # the Cal.com booking gate can never be triggered by a real
+                    # prospect reply.
+                    if reply_to:
+                        resend_payload["reply_to"] = [reply_to]
+                    resp = resend.Emails.send(resend_payload)
                     mid = str(resp.get("id"))
                 else:  # mailersend
                     import requests  # type: ignore
@@ -108,6 +134,7 @@ class EmailChannel:
                         "to": route.to,
                         "subject": subject,
                         "body": body,
+                        "reply_to": reply_to,
                         "metadata": metadata or {},
                         "is_sink": route.is_sink,
                         "message_id": mid,
@@ -129,6 +156,7 @@ class EmailChannel:
                         "to": route.to,
                         "subject": subject,
                         "body": body,
+                        "reply_to": reply_to,
                         "metadata": metadata or {},
                         "is_sink": route.is_sink,
                         "error": str(exc),

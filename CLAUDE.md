@@ -29,6 +29,40 @@ All prospects in this repo are **synthetic**. No real company data or real outbo
 
 5. **Peer-count gate at 3.** When `competitor_gap["peer_count"] < 3`, suppress all gap trend claims. Implemented in `agent/compose.py` via `_compose_gap_section()`. Constants `PEER_COUNT_SUPPRESS=3`, `PEER_COUNT_HEDGE=5`. See `method.md` for design and `ablation_results.json` for Delta A (P-028 trigger rate 0.40 → 0.0, p=0.015).
 
+6. **Cal.com booking requires a real prospect reply — never auto-book.** `run_one()` defaults to `simulate_reply=False`. Booking is ONLY triggered inside `_on_email_reply()` (or `_on_sms_reply()`) when a real inbound reply arrives at `POST /webhooks/email`. The `simulate_reply=True` flag exists exclusively for the eval harness and the `--simulate` CLI flag. **Never** set it True in production code paths. See `agent/orchestrator.py`.
+
+---
+
+## Reply Routing Setup (Required for Real Email Demo)
+
+The outbound email is sent from `onboarding@resend.dev`. When the prospect (e.g. `gashawbekelek@gmail.com`) clicks **Reply**, their email client sends the reply to the address in the `Reply-To` header. Without this header set to a monitored inbox, the reply goes to Resend's no-reply sender and `POST /webhooks/email` is never called.
+
+**Steps to enable real reply handling:**
+
+1. **Add your domain in Resend** → Dashboard → Domains → Add Domain.
+2. **Enable Inbound Routing** for that domain → set the inbound URL to:
+   ```
+   https://<your-server-host>/webhooks/email
+   ```
+3. **Set `TENACIOUS_REPLY_TO`** in `.env` to an address on that domain:
+   ```
+   TENACIOUS_REPLY_TO=replies@yourdomain.com
+   ```
+4. *(Optional)* Set `RESEND_WEBHOOK_SECRET` for HMAC signature verification on inbound events.
+
+**Without a custom domain (local testing):**
+```bash
+# 1. Send the email (no booking)
+python -m agent.main run-one prospect_002
+
+# 2. Simulate the reply firing through the webhook handler
+python -m agent.main simulate-reply prospect_002
+
+# 3. Observe Cal.com booking in HubSpot mock
+```
+
+**Sink-routing note:** When `TENACIOUS_LIVE` is unset (default), outbound emails are routed to the staff sink (e.g. `gashawbekelek@gmail.com`). The reply comes back FROM that address, not from the synthetic prospect address. `Orchestrator._reply_lookup` handles this mapping automatically — the reply handler resolves `gashawbekelek@gmail.com → marcus@glenmark.example` before any HubSpot or Cal.com operation.
+
 ---
 
 ## Known Limitations (Successor Will Hit These)

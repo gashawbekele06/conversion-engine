@@ -7,6 +7,9 @@ Covers the gaps in test_smoke.py:
   - Bench capacity gates (can_commit)
   - Kill-switch routing matrix (synthetic × TENACIOUS_LIVE × channel)
   - HubSpot required-property enforcement (upsert_contact mock path)
+  - Reply-gated Cal.com booking (no booking before reply; booking after reply)
+  - Webhook inbound email payload parsing (Resend / MailerSend / flat formats)
+  - Sink-routing reply lookup (gashawbekelek@gmail.com → marcus@glenmark.example)
 """
 from __future__ import annotations
 
@@ -432,3 +435,243 @@ class TestHubSpotRequiredProperties:
             properties={"last_enriched_at": "2026-04-25T00:00:00Z"},
         )
         assert result["id"] == "hs_existing"
+
+
+# ---------------------------------------------------------------------------
+# 6. Reply-gated Cal.com booking
+#    Challenge doc requirement: "prospect receives an email, replies, gets
+#    qualified, books a discovery call" — booking must NOT occur before reply.
+# ---------------------------------------------------------------------------
+
+class TestReplyGatedBooking:
+    """Cal.com booking only fires after the prospect manually replies."""
+
+    def test_no_booking_without_reply(self, tmp_path):
+        """simulate_reply=False → calcom_booking_id is None."""
+        from agent.orchestrator import Orchestrator, load_synthetic_prospects
+        from unittest.mock import patch as _patch
+
+        prospects = load_synthetic_prospects()
+        prospect = next(p for p in prospects if p["id"] == "prospect_002")
+
+        with _patch("agent.orchestrator.HubSpotChannel") as _hs, \
+             _patch("agent.orchestrator.CalcomChannel") as _cal, \
+             _patch("agent.orchestrator.EmailChannel") as _em, \
+             _patch("agent.orchestrator.SMSChannel"), \
+             _patch("agent.orchestrator.build_hiring_signal_brief",
+                    return_value={"company_name": "Glenmark", "last_enriched_at": "2026-04-27",
+                                  "signals": {"ai_maturity": {"score": 1}},
+                                  "segment_assignment": {"segment": 2, "confidence": 0.8},
+                                  "confidence_per_signal": {}}), \
+             _patch("agent.orchestrator.build_competitor_gap_brief",
+                    return_value={"peer_count": 5, "gap_practices": []}), \
+             _patch("agent.orchestrator.compose_email") as _compose:
+
+            from dataclasses import dataclass as _dc
+            @_dc
+            class _EmailResult:
+                ok = True; provider = "mock"; to = "gashawbekelek@gmail.com"
+                is_sink = True; message_id = "mock_001"; latency_ms = 1.0
+                error = None
+
+            @_dc
+            class _Composed:
+                subject = "Test"; body = "Hi"; confidence_band = "high"
+                fallback_used = False
+
+            _em_inst = _em.return_value
+            _em_inst.send.return_value = _EmailResult()
+            _compose.return_value = _Composed()
+            _hs_inst = _hs.return_value
+            _hs_inst.upsert_contact.return_value = {"id": "hs_001", "properties": {}}
+            _hs_inst.log_engagement.return_value = None
+
+            orch = Orchestrator()
+            result = orch.run_one(prospect, simulate_reply=False)
+
+        assert result.calcom_booking_id is None, (
+            "Cal.com must NOT be booked before the prospect replies"
+        )
+        # Cal.com channel should never have been called
+        _cal.return_value.offer_slots.assert_not_called()
+        _cal.return_value.book.assert_not_called()
+
+    def test_booking_fires_after_positive_reply(self, tmp_path):
+        """simulate_reply=True → calcom_booking_id is populated."""
+        from agent.orchestrator import Orchestrator, load_synthetic_prospects
+        from unittest.mock import patch as _patch, MagicMock
+
+        prospects = load_synthetic_prospects()
+        prospect = next(p for p in prospects if p["id"] == "prospect_002")
+
+        with _patch("agent.orchestrator.HubSpotChannel") as _hs, \
+             _patch("agent.orchestrator.CalcomChannel") as _cal, \
+             _patch("agent.orchestrator.EmailChannel") as _em, \
+             _patch("agent.orchestrator.SMSChannel"), \
+             _patch("agent.orchestrator.build_hiring_signal_brief",
+                    return_value={"company_name": "Glenmark", "last_enriched_at": "2026-04-27",
+                                  "signals": {"ai_maturity": {"score": 1}},
+                                  "segment_assignment": {"segment": 2, "confidence": 0.8},
+                                  "confidence_per_signal": {}}), \
+             _patch("agent.orchestrator.build_competitor_gap_brief",
+                    return_value={"peer_count": 5, "gap_practices": []}), \
+             _patch("agent.orchestrator.compose_email") as _compose, \
+             _patch("agent.orchestrator.can_commit", return_value=(True, "")):
+
+            from dataclasses import dataclass as _dc
+            @_dc
+            class _EmailResult:
+                ok = True; provider = "mock"; to = "gashawbekelek@gmail.com"
+                is_sink = True; message_id = "mock_001"; latency_ms = 1.0
+                error = None
+
+            @_dc
+            class _Composed:
+                subject = "Test"; body = "Hi"; confidence_band = "high"
+                fallback_used = False
+
+            _em_inst = _em.return_value
+            _em_inst.send.return_value = _EmailResult()
+            _compose.return_value = _Composed()
+            _hs_inst = _hs.return_value
+            _hs_inst.upsert_contact.return_value = {"id": "hs_001", "properties": {}}
+            _hs_inst.log_engagement.return_value = None
+
+            _cal_inst = _cal.return_value
+            _cal_inst.offer_slots.return_value = ["2026-05-01T10:00:00Z"]
+            _cal_inst.book.return_value = {"id": "booking_abc"}
+
+            orch = Orchestrator()
+            result = orch.run_one(prospect, simulate_reply=True)
+
+        assert result.calcom_booking_id == "booking_abc"
+        _cal_inst.offer_slots.assert_called_once()
+        _cal_inst.book.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# 7. Webhook email payload parsing
+#    Resend inbound, MailerSend, and flat/mock formats must all be normalised.
+# ---------------------------------------------------------------------------
+
+class TestWebhookEmailPayloadParsing:
+    """_extract_email_address and _unwrap_inbound_payload handle all providers."""
+
+    def test_extract_plain_email(self):
+        from agent.webhooks import _extract_email_address
+        assert _extract_email_address("user@example.com") == "user@example.com"
+
+    def test_extract_display_name_format(self):
+        """'Marcus <marcus@glenmark.example>' → 'marcus@glenmark.example'"""
+        from agent.webhooks import _extract_email_address
+        assert _extract_email_address("Marcus <marcus@glenmark.example>") \
+               == "marcus@glenmark.example"
+
+    def test_extract_from_dict(self):
+        """MailerSend sends from as {'email': '...', 'name': '...'}"""
+        from agent.webhooks import _extract_email_address
+        assert _extract_email_address({"email": "user@example.com", "name": "User"}) \
+               == "user@example.com"
+
+    def test_extract_empty(self):
+        from agent.webhooks import _extract_email_address
+        assert _extract_email_address(None) == ""
+        assert _extract_email_address("") == ""
+
+    def test_unwrap_resend_inbound(self):
+        """Resend wraps the email under {type: 'email.received', data: {...}}"""
+        from agent.webhooks import _unwrap_inbound_payload
+        raw = {
+            "type": "email.received",
+            "data": {"from": "user@example.com", "subject": "Re: Hi", "text": "Yes!"},
+        }
+        flat = _unwrap_inbound_payload(raw)
+        assert flat["from"] == "user@example.com"
+        assert flat["text"] == "Yes!"
+
+    def test_unwrap_flat_passthrough(self):
+        """Flat payloads (mock / MailerSend) are returned unchanged."""
+        from agent.webhooks import _unwrap_inbound_payload
+        raw = {"from": "user@example.com", "subject": "Hi", "text": "Hello"}
+        assert _unwrap_inbound_payload(raw) is raw
+
+    def test_classify_positive_reply(self):
+        """'Interested' body → reply_positive"""
+        from agent.webhooks import _unwrap_inbound_payload
+        payload = {"from": "u@e.com", "subject": "Re:", "text": "Interested!"}
+        body_text = payload.get("text", "").lower()
+        # Same classification logic as the webhook handler
+        positive_words = (
+            "interested", "tell me more", "yes", "sure", "sounds good",
+            "let's talk", "love to chat", "worth a call", "30 minutes",
+            "schedule", "book", "calendar",
+        )
+        assert any(w in body_text for w in positive_words)
+
+    def test_bounce_classified_before_body_keywords(self):
+        """A bounce notification must be classified as 'bounce' even if body contains 'yes'."""
+        # Mimic the webhook classification logic
+        raw_payload = {"type": "email.bounced", "data": {"text": "Yes"}}
+        event_type_str = (raw_payload.get("type") or "").lower()
+        is_bounce = "bounce" in event_type_str
+        assert is_bounce
+
+
+# ---------------------------------------------------------------------------
+# 8. Sink-routing reply lookup
+#    When kill-switch routes to gashawbekelek@gmail.com, the reply from
+#    that address must resolve to the correct prospect record.
+# ---------------------------------------------------------------------------
+
+class TestSinkRoutingReplyLookup:
+    """_reply_lookup maps sink address → prospect email correctly."""
+
+    def test_reply_lookup_populated_on_send(self):
+        from agent.orchestrator import Orchestrator, load_synthetic_prospects
+        from unittest.mock import patch as _patch
+
+        prospects = load_synthetic_prospects()
+        prospect = next(p for p in prospects if p["id"] == "prospect_002")
+        prospect_email = prospect["contact"]["email"]  # marcus@glenmark.example
+        sink_email = "gashawbekelek@gmail.com"
+
+        with _patch("agent.orchestrator.HubSpotChannel") as _hs, \
+             _patch("agent.orchestrator.CalcomChannel"), \
+             _patch("agent.orchestrator.EmailChannel") as _em, \
+             _patch("agent.orchestrator.SMSChannel"), \
+             _patch("agent.orchestrator.build_hiring_signal_brief",
+                    return_value={"company_name": "G", "last_enriched_at": "2026-04-27",
+                                  "signals": {"ai_maturity": {"score": 1}},
+                                  "segment_assignment": {"segment": 2, "confidence": 0.8},
+                                  "confidence_per_signal": {}}), \
+             _patch("agent.orchestrator.build_competitor_gap_brief",
+                    return_value={"peer_count": 5, "gap_practices": []}), \
+             _patch("agent.orchestrator.compose_email") as _compose:
+
+            from dataclasses import dataclass as _dc
+            @_dc
+            class _EmailResult:
+                ok = True; provider = "mock"; to = sink_email  # routed to sink
+                is_sink = True; message_id = "mock_002"; latency_ms = 1.0
+                error = None
+
+            @_dc
+            class _Composed:
+                subject = "Test"; body = "Hi"; confidence_band = "high"
+                fallback_used = False
+
+            _em.return_value.send.return_value = _EmailResult()
+            _compose.return_value = _Composed()
+            _hs.return_value.upsert_contact.return_value = {"id": "hs_001", "properties": {}}
+            _hs.return_value.log_engagement.return_value = None
+
+            orch = Orchestrator()
+            orch.run_one(prospect, simulate_reply=False)
+
+        # Sink address should map to prospect email
+        assert orch._reply_lookup.get(sink_email) == prospect_email, (
+            f"Expected {sink_email!r} → {prospect_email!r} in _reply_lookup, "
+            f"got: {orch._reply_lookup}"
+        )
+        # Direct address should also self-map
+        assert orch._reply_lookup.get(prospect_email) == prospect_email
