@@ -155,21 +155,14 @@ class SMSChannel:
             route = self.killswitch.resolve("sms", to, synthetic=synthetic)
             attrs.update({"routed_to": route.to, "is_sink": route.is_sink,
                           "reason": route.reason, "body_len": len(body)})
-            provider = "africastalking" if self.config.at_api_key else "mock"
+            if not self.config.at_api_key:
+                raise RuntimeError(
+                    "AT_API_KEY is not set in .env — cannot send SMS via Africa's Talking."
+                )
+            provider = "africastalking"
             attrs["provider"] = provider
 
             start = time.time()
-            if provider == "mock":
-                mid = f"mock_sms_{int(start*1000)}"
-                self._write_sink(
-                    {"provider": "mock", "to": route.to, "body": body,
-                     "metadata": metadata or {}, "is_sink": route.is_sink, "ts": start}
-                )
-                return SMSSendResult(
-                    ok=True, provider="mock", to=route.to, is_sink=route.is_sink,
-                    message_id=mid, latency_ms=(time.time() - start) * 1000.0,
-                )
-
             try:
                 import requests as _req  # type: ignore
                 import urllib3  # type: ignore

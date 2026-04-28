@@ -26,6 +26,12 @@ sys.path.insert(0, str(BASE))
 
 # Import orchestrator AFTER .env is loaded
 from agent.orchestrator import Orchestrator, load_synthetic_prospects  # noqa: E402
+from agent.channels.gmail_poller import get_poller  # noqa: E402
+
+# NOTE: Frontend is served by the Vite dev server on http://localhost:5173
+# Run: cd dashboard/app && npm run dev
+# DIST path kept for reference only — static serving removed.
+DIST = Path(__file__).parent / "app" / "dist"
 
 app = FastAPI(title="Tenacious Conversion Engine API")
 app.add_middleware(
@@ -35,20 +41,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Serve pre-built React frontend from dashboard/app/dist ──────────────────
-# Any request that is NOT an /api/* route falls through to the React SPA.
+
+@app.on_event("startup")
+async def _startup() -> None:
+    """Start the Gmail IMAP poller when the API server boots."""
+    poller = get_poller()
+    if poller.is_configured():
+        poller.start()
+    else:
+        import logging
+        logging.getLogger(__name__).info(
+            "Gmail IMAP poller not started — IMAP credentials not set. "
+            "Dashboard will show manual reply button as fallback."
+        )
+
 DIST = Path(__file__).parent / "app" / "dist"
-if DIST.is_dir():
-    from fastapi.staticfiles import StaticFiles
-    from fastapi.responses import FileResponse
-
-    # Mount static assets (JS/CSS bundles)
-    app.mount("/assets", StaticFiles(directory=str(DIST / "assets")), name="assets")
-
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def spa_fallback(full_path: str):
-        """Return index.html for every non-API path so React Router works."""
-        return FileResponse(str(DIST / "index.html"))
 
 
 def _load(path: str) -> dict | list:
@@ -97,6 +104,100 @@ def get_email(prospect_id: str):
 
 
 # ---------------------------------------------------------------------------
+# Inbox — real reply detection (read by dashboard polling loop)
+# Returns the most recent reply event for a prospect from inbox.jsonl.
+# The Gmail IMAP poller writes here when a real reply arrives.
+# ---------------------------------------------------------------------------
+
+@app.get("/api/inbox/{prospect_id}")
+def get_inbox_reply(prospect_id: str):
+    """Return the latest reply event in inbox.jsonl for this prospect.
+
+    The dashboard polls this every 5 s after an email is sent.
+    When the Gmail IMAP poller detects a real reply it writes to inbox.jsonl
+    and fires the Cal.com + HubSpot handlers. This endpoint surfaces the
+    reply text so the dashboard can update the conversation tab and journey
+    banner without a page reload.
+    """
+    inbox_path = BASE / "eval/traces/inbox.jsonl"
+    if not inbox_path.exists():
+        return {"error": "not_found"}
+
+    # Resolve the prospect email so we can match against inbox FROM field
+    try:
+        data = _load("data/synthetic_prospects.json")
+        prospects = data.get("prospects", data) if isinstance(data, dict) else data
+        prospect = next(
+            (p for p in prospects if p["id"] == prospect_id),
+            None,
+        )
+    except Exception:
+        prospect = None
+
+    prospect_email = prospect["contact"]["email"] if prospect else None
+    # Also accept the staff sink email (kill switch routes outbound there).
+    # Read from config so it matches whatever is set in .env — never hardcode.
+    from agent.config import load_config as _load_cfg
+    staff_sink = _load_cfg().staff_sink_email.lower()
+
+    # Look up the sent subject for this prospect so we can disambiguate
+    # when multiple staff-sink replies exist (one per prospect).
+    sent_subject = None
+    email_sink_path = BASE / "eval/traces/email_sink.jsonl"
+    if email_sink_path.exists():
+        for sl in email_sink_path.read_text(encoding="utf-8").splitlines():
+            if not sl.strip():
+                continue
+            try:
+                sr = json.loads(sl)
+            except Exception:
+                continue
+            if sr.get("metadata", {}).get("prospect_id") == prospect_id:
+                sent_subject = (sr.get("subject") or "").lower()
+                break  # first match is sufficient
+
+    lines = inbox_path.read_text(encoding="utf-8").splitlines()
+    reply_events = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except Exception:
+            continue
+        if row.get("channel") != "email":
+            continue
+        kind = row.get("kind", "")
+        if kind not in ("reply_positive", "reply_negative", "reply_other"):
+            continue
+        from_addr = (row.get("from") or row.get("payload", {}).get("from") or "").lower()
+        reply_subj = (row.get("subject") or row.get("payload", {}).get("subject") or "").lower()
+        # Match if the reply came from the prospect's email directly
+        if prospect_email and from_addr == prospect_email.lower():
+            reply_events.append(row)
+        elif from_addr == staff_sink:
+            # Staff sink routes all prospects — disambiguate by subject.
+            # A real Gmail reply subject looks like "Re: <sent_subject>".
+            # If we know the sent subject, require it to appear in the reply subject.
+            if sent_subject and sent_subject not in reply_subj:
+                continue
+            reply_events.append(row)
+
+    if not reply_events:
+        return {"error": "not_found"}
+
+    latest = reply_events[-1]
+    return {
+        "kind": latest.get("kind"),
+        "from": latest.get("from") or latest.get("payload", {}).get("from"),
+        "subject": latest.get("subject") or latest.get("payload", {}).get("subject", ""),
+        "text": (latest.get("payload") or {}).get("text") or "",
+        "ts": latest.get("ts"),
+        "source": (latest.get("payload") or {}).get("source", "webhook"),
+    }
+
+
+# ---------------------------------------------------------------------------
 # HubSpot contact
 # ---------------------------------------------------------------------------
 
@@ -136,6 +237,40 @@ def get_calcom(email: str):
 @app.get("/api/bench")
 def get_bench():
     return _load("eval/score_log.json")
+
+
+# ---------------------------------------------------------------------------
+# Gmail IMAP poller  (PATH A: real reply detection)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/poller/status")
+def get_poller_status():
+    """Return current status of the Gmail IMAP poller."""
+    return get_poller().status()
+
+
+@app.post("/api/poller/start")
+def start_poller():
+    """(Re)start the Gmail IMAP poller."""
+    p = get_poller()
+    if not p.is_configured():
+        return {
+            "ok": False,
+            "error": "missing_config",
+            "detail": (
+                "Set GMAIL_IMAP_USER, GMAIL_IMAP_APP_PASSWORD, and "
+                "TENACIOUS_REPLY_TO in .env then restart the server."
+            ),
+        }
+    p.start()
+    return {"ok": True, "status": p.status()}
+
+
+@app.post("/api/poller/stop")
+def stop_poller():
+    """Stop the Gmail IMAP poller."""
+    get_poller().stop()
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -217,11 +352,13 @@ PIPELINE_STEPS = [
 STEP_IDS = [s[0] for s in PIPELINE_STEPS]
 
 
-def _run_pipeline_sync(prospect_id: str, simulate_reply: bool = False) -> dict:
+def _run_pipeline_sync(prospect_id: str) -> dict:
     """Run the full orchestrator synchronously — called in a thread.
 
-    simulate_reply=False (default): sends email, waits for real reply via webhook.
-    simulate_reply=True: full demo loop including simulated reply + Cal.com booking.
+    simulate_reply is always False: the pipeline sends the email and stops.
+    The real reply comes from gashawbekelek@gmail.com via the Gmail IMAP poller.
+    The poller fires the Cal.com booking and HubSpot update automatically.
+    The dashboard polls /api/inbox/{prospect_id} every 5 s to detect the reply.
     """
     prospects = load_synthetic_prospects()
     match = next(
@@ -231,7 +368,7 @@ def _run_pipeline_sync(prospect_id: str, simulate_reply: bool = False) -> dict:
     if not match:
         return {"error": f"Prospect {prospect_id} not found"}
     orch = Orchestrator()
-    result = orch.run_one(match, simulate_reply=simulate_reply)
+    result = orch.run_one(match, simulate_reply=False)
     return result.__dict__
 
 
@@ -283,12 +420,12 @@ async def simulate_reply_endpoint(prospect_id: str, payload: dict | None = None)
 
 
 @app.get("/api/run/{prospect_id}")
-async def run_pipeline(prospect_id: str, demo: bool = False):
+async def run_pipeline(prospect_id: str):
     """Stream pipeline progress via Server-Sent Events.
 
-    ?demo=1  → simulate_reply=True  (full loop including booking, for demo video)
-    default  → simulate_reply=False (send email, stage = awaiting_reply)
-               Use POST /api/reply/{prospect_id} to advance to booking.
+    Sends the outbound email to gashawbekelek@gmail.com and stops.
+    The real reply must come from Gmail → IMAP poller → Cal.com booking → HubSpot.
+    Dashboard polls /api/inbox/{prospect_id} every 5 s for the reply.
     """
     async def generate():
         # Stream each step label as "running" so the UI shows progress
@@ -299,7 +436,7 @@ async def run_pipeline(prospect_id: str, demo: bool = False):
         # Run the full pipeline in a background thread (synchronous I/O)
         try:
             result = await asyncio.wait_for(
-                asyncio.to_thread(_run_pipeline_sync, prospect_id, demo),
+                asyncio.to_thread(_run_pipeline_sync, prospect_id),
                 timeout=300,  # 5 min — allows for LLM + Resend + Cal.com calls
             )
         except asyncio.TimeoutError:
@@ -319,3 +456,9 @@ async def run_pipeline(prospect_id: str, demo: bool = False):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ── Frontend served independently via Vite dev server ───────────────────────
+# Run:  cd dashboard/app && npm run dev   → http://localhost:5173
+# Vite proxies /api/* → http://localhost:8000  (see vite.config.js)
+# The backend is API-only; no static file serving needed here.

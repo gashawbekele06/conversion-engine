@@ -1,14 +1,19 @@
-"""Cal.com booking flow — real Cal.com v2 API primary, mock fallback.
+"""Cal.com booking flow — real Cal.com v2 API only.
 
-Attaches the hiring_signal_brief + competitor_gap_brief as a context
-document on the booking so the Tenacious delivery lead joins the call
-with research already in hand.
+No mock fallback.  If CALCOM_API_KEY or CALCOM_EVENT_TYPE_ID are missing
+the methods raise immediately.  If the API call fails the exception
+propagates so the orchestrator can surface the real error.
+
+Attaches the hiring_signal_brief + competitor_gap_brief as metadata on the
+booking so the Tenacious delivery lead joins the call with research in hand.
 """
 from __future__ import annotations
 
 import json
+import re as _re
 import time
-import uuid
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +24,8 @@ from ..tracing import get_tracer
 class CalcomChannel:
     def __init__(self, config: Config | None = None) -> None:
         self.config = config or load_config()
+
+        # Local store — records every successful booking for dashboard queries.
         self.store_path = Path(__file__).resolve().parents[2] / "eval" / "traces" / "calcom_mock.json"
         self.store_path.parent.mkdir(parents=True, exist_ok=True)
         if not self.store_path.exists():
@@ -27,13 +34,20 @@ class CalcomChannel:
         self._api_key = self.config.calcom_api_key
         self._event_type_id = self.config.calcom_event_type_id
         self._base_url = "https://api.cal.com/v2"
-        self._live = bool(self._api_key and self._event_type_id)
 
-    def _load(self) -> dict[str, Any]:
-        return json.loads(self.store_path.read_text(encoding="utf-8"))
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
-    def _save(self, data: dict[str, Any]) -> None:
-        self.store_path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+    def _require_credentials(self) -> None:
+        if not self._api_key:
+            raise RuntimeError(
+                "CALCOM_API_KEY is not set in .env — cannot call Cal.com API."
+            )
+        if not self._event_type_id:
+            raise RuntimeError(
+                "CALCOM_EVENT_TYPE_ID is not set in .env — cannot call Cal.com API."
+            )
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -43,67 +57,75 @@ class CalcomChannel:
             "User-Agent": "TenaciousConversionEngine/1.0",
         }
 
+    def _clean_iso(self, when_iso: str) -> str:
+        """Return a clean ISO-8601 UTC string ending in Z.
+
+        Cal.com v2 slots API returns "+00:00" offset strings; Python's
+        isoformat() on tz-aware datetimes does the same.  Appending "Z" to
+        either form produces the malformed "+00:00Z" that the bookings API
+        rejects with HTTP 400.
+        """
+        t = _re.sub(r"\.\d+", "", when_iso)        # strip milliseconds
+        t = _re.sub(r"\+00:00Z?$", "Z", t)         # +00:00 or +00:00Z → Z
+        if not t.endswith("Z"):
+            t = t.rstrip("Z") + "Z"
+        return t
+
+    def _load(self) -> dict[str, Any]:
+        return json.loads(self.store_path.read_text(encoding="utf-8"))
+
+    def _save(self, data: dict[str, Any]) -> None:
+        self.store_path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     def offer_slots(self, *, prospect_email: str, timezone: str, count: int = 3) -> list[str]:
+        """Return up to `count` available slot times from Cal.com v2 API."""
+        self._require_credentials()
         tracer = get_tracer()
-        with tracer.trace("calcom.offer_slots", prospect=prospect_email, tz=timezone,
-                          live=self._live) as attrs:
-            if self._live:
-                try:
-                    import urllib.request
-                    import datetime as dt
 
-                    now = dt.datetime.now(dt.timezone.utc)
-                    start = now + dt.timedelta(days=1)
-                    end = start + dt.timedelta(days=7)
-
-                    params = (
-                        f"eventTypeId={self._event_type_id}"
-                        f"&startTime={start.strftime('%Y-%m-%dT%H:%M:%SZ')}"
-                        f"&endTime={end.strftime('%Y-%m-%dT%H:%M:%SZ')}"
-                    )
-                    req = urllib.request.Request(
-                        f"{self._base_url}/slots/available?{params}",
-                        headers=self._headers(),
-                    )
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        body = json.loads(resp.read())
-
-                    # v2 response: {"data":{"slots":{"2026-04-27":[{"time":"..."},...]}}}
-                    slots_by_day: dict[str, list[dict]] = (
-                        body.get("data", {}).get("slots", {})
-                    )
-                    slots: list[str] = []
-                    for day_slots in slots_by_day.values():
-                        for s in day_slots:
-                            slots.append(s["time"])
-                            if len(slots) >= count:
-                                break
-                        if len(slots) >= count:
-                            break
-
-                    if slots:
-                        attrs["slot_count"] = len(slots)
-                        attrs["live"] = True
-                        return slots[:count]
-                except Exception as exc:  # noqa: BLE001
-                    attrs["live_error"] = str(exc)
-
-            # Fallback: generate synthetic slots
+        with tracer.trace("calcom.offer_slots", prospect=prospect_email,
+                          tz=timezone, live=True) as attrs:
             import datetime as dt
+
             now = dt.datetime.now(dt.timezone.utc)
-            slots = []
-            day_offset = 1
-            while len(slots) < count:
-                candidate = now + dt.timedelta(days=day_offset)
-                if candidate.weekday() < 5:
-                    for hour in (10, 14, 16):
-                        if len(slots) >= count:
-                            break
-                        slot = candidate.replace(hour=hour, minute=0, second=0, microsecond=0)
-                        slots.append(slot.isoformat() + "Z")
-                day_offset += 1
+            start = now + dt.timedelta(days=1)
+            end = start + dt.timedelta(days=30)
+
+            params = (
+                f"eventTypeId={self._event_type_id}"
+                f"&startTime={start.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+                f"&endTime={end.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+            )
+            req = urllib.request.Request(
+                f"{self._base_url}/slots/available?{params}",
+                headers=self._headers(),
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    body = json.loads(resp.read())
+            except urllib.error.HTTPError as http_err:
+                err_body = http_err.read().decode("utf-8", errors="replace")
+                raise RuntimeError(
+                    f"Cal.com offer_slots HTTP {http_err.code}: {err_body[:500]}"
+                ) from http_err
+
+            # v2 response: {"data":{"slots":{"2026-04-27":[{"time":"..."},...]}}}
+            slots_by_day: dict[str, list[dict]] = body.get("data", {}).get("slots", {})
+            slots: list[str] = []
+            for day_slots in slots_by_day.values():
+                for s in day_slots:
+                    slots.append(self._clean_iso(s["time"]))
+                    if len(slots) >= count:
+                        break
+                if len(slots) >= count:
+                    break
+
             attrs["slot_count"] = len(slots)
-            return slots
+            attrs["live"] = True
+            return slots[:count]
 
     def book(
         self,
@@ -114,89 +136,83 @@ class CalcomChannel:
         timezone: str,
         context_brief: dict[str, Any],
     ) -> dict[str, Any]:
+        """Book a discovery call via the real Cal.com v2 API.
+
+        Raises RuntimeError if credentials are missing or the API call fails.
+        On success, appends the record to the local store and returns it.
+        """
+        self._require_credentials()
         tracer = get_tracer()
-        with tracer.trace("calcom.book", prospect=prospect_email, when=when_iso,
-                          live=self._live) as attrs:
-            if self._live:
-                try:
-                    import urllib.request
 
-                    first, *rest = prospect_name.split(" ", 1)
-                    last = rest[0] if rest else ""
+        when_iso_clean = self._clean_iso(when_iso)
 
-                    payload = json.dumps({
-                        "eventTypeId": int(self._event_type_id),
-                        "start": when_iso,
-                        "attendee": {
-                            "name": prospect_name,
-                            "email": prospect_email,
-                            "timeZone": timezone,
-                        },
-                        "metadata": {
-                            "company_name": context_brief.get("company_name", ""),
-                            "segment": str(
-                                context_brief.get("segment_assignment", {}).get("segment", "")
-                            ),
-                        },
-                    }).encode()
+        with tracer.trace("calcom.book", prospect=prospect_email,
+                          when=when_iso_clean, live=True) as attrs:
+            payload = json.dumps({
+                "eventTypeId": int(self._event_type_id),
+                "start": when_iso_clean,
+                "attendee": {
+                    "name": prospect_name,
+                    "email": prospect_email,
+                    "timeZone": timezone,
+                    "language": "en",
+                },
+                "metadata": {
+                    "company_name": context_brief.get("company_name", ""),
+                    "segment": str(
+                        context_brief.get("segment_assignment", {}).get("segment", "")
+                    ),
+                },
+            }).encode()
 
-                    req = urllib.request.Request(
-                        f"{self._base_url}/bookings",
-                        data=payload,
-                        headers=self._headers(),
-                        method="POST",
-                    )
-                    with urllib.request.urlopen(req, timeout=15) as resp:
-                        body = json.loads(resp.read())
+            req = urllib.request.Request(
+                f"{self._base_url}/bookings",
+                data=payload,
+                headers=self._headers(),
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    body = json.loads(resp.read())
+            except urllib.error.HTTPError as http_err:
+                err_body = http_err.read().decode("utf-8", errors="replace")
+                raise RuntimeError(
+                    f"Cal.com book HTTP {http_err.code}: {err_body[:500]}"
+                ) from http_err
 
-                    # v2 response: {"status":"success","data":{"uid":"...","id":123,...}}
-                    booking_id = str(body.get("data", {}).get("uid") or body.get("data", {}).get("id", ""))
-                    if booking_id:
-                        record = {
-                            "id": booking_id,
-                            "prospect_email": prospect_email,
-                            "prospect_name": prospect_name,
-                            "when_iso": when_iso,
-                            "timezone": timezone,
-                            "attendee_tenacious": "delivery-lead@tenacious.internal",
-                            "context_brief_summary": {
-                                "company_name": context_brief.get("company_name"),
-                                "segment": context_brief.get("segment_assignment", {}).get("segment"),
-                                "ai_maturity_score": (
-                                    context_brief.get("signals", {}).get("ai_maturity") or {}
-                                ).get("score"),
-                            },
-                            "ts": time.time(),
-                            "live": True,
-                        }
-                        data = self._load()
-                        data["bookings"].append(record)
-                        self._save(data)
-                        attrs["booking_id"] = booking_id
-                        attrs["live"] = True
-                        return record
-                except Exception as exc:  # noqa: BLE001
-                    attrs["live_error"] = str(exc)
+            # v2 response: {"status":"success","data":{"uid":"...","id":123,...}}
+            booking_id = str(
+                body.get("data", {}).get("uid")
+                or body.get("data", {}).get("id", "")
+            )
+            if not booking_id:
+                raise RuntimeError(
+                    f"Cal.com book: no booking ID in response: {str(body)[:300]}"
+                )
 
-            # Mock fallback
-            booking_id = f"cal_{uuid.uuid4().hex[:8]}"
-            data = self._load()
             record = {
                 "id": booking_id,
                 "prospect_email": prospect_email,
                 "prospect_name": prospect_name,
-                "when_iso": when_iso,
+                "when_iso": when_iso_clean,
                 "timezone": timezone,
                 "attendee_tenacious": "delivery-lead@tenacious.internal",
                 "context_brief_summary": {
                     "company_name": context_brief.get("company_name"),
                     "segment": context_brief.get("segment_assignment", {}).get("segment"),
-                    "ai_maturity_score": (context_brief.get("signals", {})
-                                         .get("ai_maturity") or {}).get("score"),
+                    "ai_maturity_score": (
+                        context_brief.get("signals", {}).get("ai_maturity") or {}
+                    ).get("score"),
                 },
                 "ts": time.time(),
+                "live": True,
             }
+
+            # Persist to local store so the dashboard /api/calcom endpoint can read it
+            data = self._load()
             data["bookings"].append(record)
             self._save(data)
+
             attrs["booking_id"] = booking_id
+            attrs["live"] = True
             return record

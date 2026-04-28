@@ -1,9 +1,8 @@
-"""Email channel — Resend primary, MailerSend fallback, mock default.
+"""Email channel — Resend primary, MailerSend fallback.
 
-In the interim build the real HTTP client is wrapped but is ONLY
-engaged when `cfg.resend_api_key` or `cfg.mailersend_api_key` is set.
-Default behaviour is to append the message to a JSONL sink file so the
-full Act II end-to-end flow is reproducible without live accounts.
+RESEND_API_KEY (or MAILERSEND_API_KEY) is required.
+Raises RuntimeError if no provider is configured or the send fails.
+All sent messages are also appended to the JSONL sink for audit trail.
 """
 from __future__ import annotations
 
@@ -69,105 +68,66 @@ class EmailChannel:
             provider = self._pick_provider()
             attrs["provider"] = provider
 
-            start = time.time()
             if provider == "mock":
-                message_id = f"mock_{int(start*1000)}"
-                self._write_sink(
-                    {
-                        "provider": "mock",
-                        "to": route.to,
-                        "subject": subject,
-                        "body": body,
-                        "reply_to": reply_to,
-                        "metadata": metadata or {},
-                        "is_sink": route.is_sink,
-                        "ts": start,
-                    }
-                )
-                return EmailSendResult(
-                    ok=True, provider="mock", to=route.to, is_sink=route.is_sink,
-                    message_id=message_id, latency_ms=(time.time() - start) * 1000.0,
+                raise RuntimeError(
+                    "No email provider configured. Set RESEND_API_KEY in .env."
                 )
 
-            # Real-provider code path — not exercised without API keys.
-            # Imports are local so missing libs never break the mock path.
-            try:
-                if provider == "resend":
-                    import resend  # type: ignore
-                    resend.api_key = self.config.resend_api_key
-                    # Use Resend's verified test sender when routing to sink/unverified domains
-                    from_addr = "Tenacious <onboarding@resend.dev>"
-                    resend_payload: dict[str, Any] = {
-                        "from": from_addr,
-                        "to": [route.to],
+            start = time.time()
+            if provider == "resend":
+                import resend  # type: ignore
+                resend.api_key = self.config.resend_api_key
+                # Use Resend's verified test sender when routing to sink/unverified domains
+                from_addr = "Tenacious <onboarding@resend.dev>"
+                resend_payload: dict[str, Any] = {
+                    "from": from_addr,
+                    "to": [route.to],
+                    "subject": subject,
+                    "html": body,
+                }
+                # reply_to MUST be set so prospect replies route to the
+                # webhook at POST /webhooks/email rather than bouncing off
+                # the no-reply Resend sender address.  Without this header
+                # the Cal.com booking gate can never be triggered by a real
+                # prospect reply.
+                if reply_to:
+                    resend_payload["reply_to"] = [reply_to]
+                resp = resend.Emails.send(resend_payload)
+                mid = str(resp.get("id"))
+            else:  # mailersend
+                import requests  # type: ignore
+                r = requests.post(
+                    "https://api.mailersend.com/v1/email",
+                    headers={"Authorization": f"Bearer {self.config.mailersend_api_key}"},
+                    json={
+                        "from": {"email": "outbound@tenacious.example"},
+                        "to": [{"email": route.to}],
                         "subject": subject,
                         "html": body,
-                    }
-                    # reply_to MUST be set so prospect replies route to the
-                    # webhook at POST /webhooks/email rather than bouncing off
-                    # the no-reply Resend sender address.  Without this header
-                    # the Cal.com booking gate can never be triggered by a real
-                    # prospect reply.
-                    if reply_to:
-                        resend_payload["reply_to"] = [reply_to]
-                    resp = resend.Emails.send(resend_payload)
-                    mid = str(resp.get("id"))
-                else:  # mailersend
-                    import requests  # type: ignore
-                    r = requests.post(
-                        "https://api.mailersend.com/v1/email",
-                        headers={"Authorization": f"Bearer {self.config.mailersend_api_key}"},
-                        json={
-                            "from": {"email": "outbound@tenacious.example"},
-                            "to": [{"email": route.to}],
-                            "subject": subject,
-                            "html": body,
-                        },
-                        timeout=10,
-                    )
-                    r.raise_for_status()
-                    mid = r.headers.get("X-Message-Id", f"ms_{int(start*1000)}")
-                # Write to sink for dashboard observability (all live sends recorded)
-                self._write_sink(
-                    {
-                        "provider": provider,
-                        "to": route.to,
-                        "subject": subject,
-                        "body": body,
-                        "reply_to": reply_to,
-                        "metadata": metadata or {},
-                        "is_sink": route.is_sink,
-                        "message_id": mid,
-                        "ts": start,
-                    }
+                    },
+                    timeout=10,
                 )
-                return EmailSendResult(
-                    ok=True, provider=provider, to=route.to, is_sink=route.is_sink,
-                    message_id=mid, latency_ms=(time.time() - start) * 1000.0,
-                )
-            except Exception as exc:  # noqa: BLE001
-                # On provider failure (rate limit, auth, network) fall back to
-                # mock sink so the pipeline always produces a traceable message ID.
-                attrs["provider_error"] = str(exc)
-                message_id = f"mock_{int(start*1000)}"
-                self._write_sink(
-                    {
-                        "provider": f"{provider}_fallback",
-                        "to": route.to,
-                        "subject": subject,
-                        "body": body,
-                        "reply_to": reply_to,
-                        "metadata": metadata or {},
-                        "is_sink": route.is_sink,
-                        "error": str(exc),
-                        "ts": start,
-                    }
-                )
-                return EmailSendResult(
-                    ok=False, provider=provider, to=route.to, is_sink=route.is_sink,
-                    message_id=message_id, latency_ms=(time.time() - start) * 1000.0,
-                    error=str(exc),
-                )
+                r.raise_for_status()
+                mid = r.headers.get("X-Message-Id", f"ms_{int(start*1000)}")
+
+            # Write to sink for dashboard observability (all live sends recorded)
+            self._write_sink(
+                {
+                    "provider": provider,
+                    "to": route.to,
+                    "subject": subject,
+                    "body": body,
+                    "reply_to": reply_to,
+                    "metadata": metadata or {},
+                    "is_sink": route.is_sink,
+                    "message_id": mid,
+                    "ts": start,
+                }
+            )
+            return EmailSendResult(
+                ok=True, provider=provider, to=route.to, is_sink=route.is_sink,
+                message_id=mid, latency_ms=(time.time() - start) * 1000.0,
+            )
 
     def _pick_provider(self) -> str:
         if self.config.resend_api_key:

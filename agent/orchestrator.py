@@ -174,7 +174,56 @@ class Orchestrator:
         def _on_email_reply(kind: str, from_addr: str, subject: str, payload: dict) -> None:
             # Resolve the real prospect email — handles sink-routing case where
             # from_addr is a staff/test inbox rather than the prospect address.
+            #
+            # When multiple prospects all route outbound to the same staff sink,
+            # _reply_lookup[sink_addr] only holds the LAST prospect that ran, so
+            # a plain dict lookup silently mis-routes earlier replies.  Instead
+            # we use the reply subject to find which prospect was sent that email
+            # (via email_sink.jsonl metadata.prospect_id), then resolve their
+            # synthetic address from synthetic_prospects.json.
             prospect_email = self._reply_lookup.get(from_addr, from_addr)
+            staff_sink = self.cfg.staff_sink_email.lower()
+            if from_addr.lower() == staff_sink:
+                # Subject disambiguation for shared sink routing
+                import json as _json
+                email_sink_path = (
+                    __import__("pathlib").Path(__file__).resolve().parents[1]
+                    / "eval" / "traces" / "email_sink.jsonl"
+                )
+                reply_subj_lower = subject.lower()
+                matched_pid: str | None = None
+                if email_sink_path.exists():
+                    for _sl in email_sink_path.read_text(encoding="utf-8").splitlines():
+                        if not _sl.strip():
+                            continue
+                        try:
+                            _sr = _json.loads(_sl)
+                        except Exception:
+                            continue
+                        sent_subj = (_sr.get("subject") or "").lower()
+                        if sent_subj and sent_subj in reply_subj_lower:
+                            matched_pid = _sr.get("metadata", {}).get("prospect_id")
+                            break
+                if matched_pid:
+                    try:
+                        _pdata = _json.loads(
+                            (
+                                __import__("pathlib").Path(__file__).resolve().parents[1]
+                                / "data" / "synthetic_prospects.json"
+                            ).read_text(encoding="utf-8")
+                        )
+                        _prospects = (
+                            _pdata.get("prospects", _pdata)
+                            if isinstance(_pdata, dict)
+                            else _pdata
+                        )
+                        _match = next(
+                            (p for p in _prospects if p["id"] == matched_pid), None
+                        )
+                        if _match:
+                            prospect_email = _match["contact"]["email"]
+                    except Exception:
+                        pass
 
             if kind == "unsubscribe":
                 self.hs.log_engagement(
@@ -227,17 +276,26 @@ class Orchestrator:
                         metadata={"stack": stack, "direction": "internal"},
                     )
                     return  # route to human — do not offer slots
-                # Offer and book first available slot — triggered by real reply only
+                # Offer and book first available slot — triggered by real reply only.
+                # When routing via the staff sink, book under the real replying
+                # address (from_addr) so Cal.com sends the confirmation email to
+                # an actual inbox rather than the synthetic prospect address.
+                calcom_attendee = (
+                    from_addr
+                    if from_addr.lower() == staff_sink
+                    else prospect_email
+                )
+                prospect_name = brief.get("prospect_name") or calcom_attendee
                 try:
                     slots = self.cal.offer_slots(
-                        prospect_email=prospect_email,
+                        prospect_email=calcom_attendee,
                         timezone="UTC",
                         count=3,
                     )
                     if slots:
                         booking = self.cal.book(
-                            prospect_email=prospect_email,
-                            prospect_name=prospect_email,
+                            prospect_email=calcom_attendee,
+                            prospect_name=prospect_name,
                             when_iso=slots[0],
                             timezone="UTC",
                             context_brief=brief,

@@ -263,11 +263,22 @@ code { font-family: 'Courier New', monospace; font-size: 11px; background: #f1f5
 .conf-band-pill.high   { background: #d1fae5; color: #065f46; }
 .conf-band-pill.medium { background: #fef3c7; color: #92400e; }
 .conf-band-pill.low    { background: #fee2e2; color: #991b1b; }
-.conv-action-row { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
+.conv-action-row { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 4px 0; }
 .btn-reply { background: #059669; color: #fff; border: none; cursor: pointer;
               padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; }
 .btn-reply:hover { background: #047857; }
 .conv-action-note { font-size: 11px; color: #94a3b8; }
+.gmail-reply-notice { display: flex; align-items: flex-start; gap: 12px;
+                       background: #f0fdf4; border: 1px solid #6ee7b7; border-radius: 10px;
+                       padding: 14px 16px; width: 100%; }
+.gmail-reply-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
+.gmail-reply-text { font-size: 12.5px; color: #065f46; line-height: 1.6; }
+.gmail-reply-text strong { font-size: 13px; color: #047857; }
+.gmail-reply-steps { margin: 8px 0 0 0; padding-left: 18px; display: flex;
+                      flex-direction: column; gap: 5px; }
+.gmail-reply-steps li { font-size: 12.5px; color: #065f46; line-height: 1.6; }
+.gmail-reply-steps code { background: #d1fae5; padding: 1px 5px; border-radius: 4px;
+                           font-size: 11.5px; color: #047857; }
 .conv-qualified { background: #d1fae5; border: 1px solid #059669; border-radius: 10px;
                    padding: 12px 16px; }
 .qual-header { font-weight: 700; color: #065f46; font-size: 14px; margin-bottom: 6px; }
@@ -469,6 +480,74 @@ code { font-family: 'Courier New', monospace; font-size: 11px; background: #f1f5
 .ev-claim { font-size: 11px; color: #1e293b; flex: 1; line-height: 1.4; }
 .ev-ref   { font-size: 9.5px; color: #94a3b8; flex-shrink: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 .ev-more  { font-size: 11px; color: #94a3b8; text-align: center; padding: 6px; }
+
+/* ---- Reply-gate prompt ----------------------------------------------- */
+.reply-gate-prompt {
+  margin-top: 14px;
+  background: #fffbeb;
+  border: 2px solid #f59e0b;
+  border-radius: 10px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rgp-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rgp-note {
+  font-size: 11.5px;
+  color: #78350f;
+  line-height: 1.55;
+}
+.rgp-note em {
+  font-style: normal;
+  font-weight: 600;
+  color: #b45309;
+}
+.btn-reply-big {
+  margin-top: 4px;
+  padding: 10px 22px;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: .3px;
+  box-shadow: 0 2px 8px rgba(5,150,105,.35);
+  transition: opacity .15s;
+  align-self: flex-start;
+}
+.btn-reply-big:hover { opacity: .88; }
+
+/* ---- Gmail IMAP poller strip ----------------------------------------- */
+.poller-strip {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 18px; font-size: 11.5px; flex-shrink: 0;
+  border-bottom: 1px solid rgba(0,0,0,.08);
+}
+.poller-strip.running      { background: #f0fdf4; color: #14532d; }
+.poller-strip.unconfigured { background: #fefce8; color: #713f12; }
+.poller-strip.stopped      { background: #f8fafc; color: #475569; }
+
+.poller-icon { font-size: 14px; flex-shrink: 0; }
+.poller-msg  { flex: 1; line-height: 1.55; }
+.poller-msg a { color: #2563eb; text-decoration: underline; }
+.poller-err  { color: #dc2626; font-style: italic; }
+
+.poller-badge {
+  flex-shrink: 0; padding: 3px 9px; border-radius: 10px;
+  font-size: 10px; font-weight: 700; letter-spacing: .04em;
+}
+.poller-badge.on  { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.poller-badge.off { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
 
 /* ---- Responsive ------------------------------------------------------ */
 @media (max-width: 960px) {

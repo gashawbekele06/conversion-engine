@@ -61,6 +61,75 @@ function Spinner() { return <span className="spinner" /> }
 function Empty({ msg }) { return <div className="empty">{msg}</div> }
 
 // ---------------------------------------------------------------------------
+// Gmail Poller Status Strip  (PATH A: real email reply detection)
+// ---------------------------------------------------------------------------
+
+function PollerStrip({ poller }) {
+  if (!poller) return null
+  const { running, configured, reply_to, imap_user, last_poll_ago_s, emails_detected, last_error } = poller
+
+  if (!configured) {
+    return (
+      <div className="poller-strip unconfigured">
+        <span className="poller-icon">📭</span>
+        <span className="poller-msg">
+          <strong>PATH A (real Gmail reply) not configured.</strong>{' '}
+          Set <code>GMAIL_IMAP_USER</code>, <code>GMAIL_IMAP_APP_PASSWORD</code>, and{' '}
+          <code>TENACIOUS_REPLY_TO</code> in <code>.env</code>, then restart the server.
+          &nbsp;|&nbsp; <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">Generate App Password →</a>
+        </span>
+        <span className="poller-badge off">IMAP: off</span>
+      </div>
+    )
+  }
+
+  if (running) {
+    const hasAuthError = last_error && last_error.toLowerCase().includes('auth')
+    return (
+      <div className={`poller-strip ${hasAuthError ? 'unconfigured' : 'running'}`}>
+        <span className="poller-icon">{hasAuthError ? '🔑' : '📬'}</span>
+        <span className="poller-msg">
+          {hasAuthError ? (
+            <>
+              <strong>Gmail IMAP: authentication failed.</strong>{' '}
+              Set <code>GMAIL_IMAP_APP_PASSWORD</code> in <code>.env</code> to a valid
+              16-char App Password from{' '}
+              <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">
+                myaccount.google.com/apppasswords →
+              </a>
+              {' '}then restart the server.
+            </>
+          ) : (
+            <>
+              <strong>Real-email reply detection active.</strong>{' '}
+              Watching <code>{imap_user}</code> for replies to <code>{reply_to}</code>.{' '}
+              Last checked: {last_poll_ago_s != null ? `${last_poll_ago_s}s ago` : '…'}{' '}
+              · Emails detected: <strong>{emails_detected}</strong>
+              {last_error && <span className="poller-err"> · Error: {last_error}</span>}
+            </>
+          )}
+        </span>
+        <span className={`poller-badge ${hasAuthError ? 'off' : 'on'}`}>
+          {hasAuthError ? 'IMAP: auth ✗' : 'IMAP: ✓ live'}
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="poller-strip stopped">
+      <span className="poller-icon">⏸</span>
+      <span className="poller-msg">
+        <strong>Gmail IMAP poller stopped.</strong>{' '}
+        Configured for <code>{reply_to}</code> but not running.
+        {last_error && <span className="poller-err"> Error: {last_error}</span>}
+      </span>
+      <span className="poller-badge off">IMAP: stopped</span>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Header
 // ---------------------------------------------------------------------------
 
@@ -225,7 +294,7 @@ function ProspectCard({ prospect }) {
 // Pipeline Panel
 // ---------------------------------------------------------------------------
 
-function PipelinePanel({ prospect, state, onRun }) {
+function PipelinePanel({ prospect, state, onRun, booked, waitingReply }) {
   if (!prospect) {
     return (
       <div className="card">
@@ -233,6 +302,9 @@ function PipelinePanel({ prospect, state, onRun }) {
       </div>
     )
   }
+
+  const emailSent = state.result && !state.result.error
+
   return (
     <div className="card pipeline-card">
       <div className="card-title">
@@ -258,13 +330,40 @@ function PipelinePanel({ prospect, state, onRun }) {
           onClick={onRun} disabled={state.running}>
           {state.running ? '⏳ Running…' : '▶  Run Pipeline for ' + prospect.contact.first_name}
         </button>
-        {state.result && !state.result.error && (
-          <div className="run-ok">
-            ✓ Complete &nbsp;|&nbsp; Booking: <code>{state.result.calcom_booking_id}</code>
-            &nbsp;|&nbsp; HubSpot: <code>{state.result.hubspot_contact_id}</code>
-            &nbsp;|&nbsp; {state.result.latency_ms?.toFixed(0)} ms
+
+        {/* ── Awaiting real Gmail reply ── shown after email sent, before booking ── */}
+        {emailSent && waitingReply && (
+          <div className="reply-gate-prompt">
+            <div className="rgp-label">
+              📬 Email sent · Stage: <strong>awaiting_reply</strong>
+            </div>
+            <div className="rgp-steps">
+              <div className="rgp-step">
+                <span className="rgp-num">1</span>
+                Open <strong>gashawbekelek@gmail.com</strong> in Gmail
+              </div>
+              <div className="rgp-step">
+                <span className="rgp-num">2</span>
+                Find the email from <strong>onboarding@resend.dev</strong> and click <strong>Reply</strong>
+              </div>
+              <div className="rgp-step">
+                <span className="rgp-num">3</span>
+                Type anything positive — e.g. <em>"Interested, worth 30 min"</em> — and send
+              </div>
+              <div className="rgp-step rgp-step-auto">
+                <span className="rgp-num">4</span>
+                The IMAP poller detects the reply within ~15 s → Cal.com books → dashboard updates automatically
+              </div>
+            </div>
           </div>
         )}
+
+        {booked && (
+          <div className="run-ok">
+            ✓ Reply received &amp; qualified → Cal.com booked → check <strong>📅 Cal.com Booking</strong> tab
+          </div>
+        )}
+
         {state.result?.error && <div className="run-err">Error: {state.result.error}</div>}
       </div>
     </div>
@@ -450,8 +549,8 @@ function SendReceipt({ email }) {
         <div className="sr-row">
           <span className="sr-lbl">PROVIDER</span>
           <span className="sr-val">{email.provider || 'mock'}
-            {!isLive && (
-              <span className="sr-hint"> — set RESEND_API_KEY + STAFF_SINK_EMAIL in .env to route live</span>
+            {!isLive && email.is_sink && (
+              <span className="sr-hint"> — routed to staff sink (TENACIOUS_LIVE unset)</span>
             )}
           </span>
         </div>
@@ -478,7 +577,7 @@ function SendReceipt({ email }) {
 // Conversation Tab  (rubric: End-to-End Conversion Flow)
 // ---------------------------------------------------------------------------
 
-function ConversationTab({ email, prospect, reply, onSimulateReply, qualified, smsResult }) {
+function ConversationTab({ email, prospect, reply, qualified, smsResult }) {
   if (!email && !prospect) return <Empty msg="Run the pipeline to see the email conversation." />
 
   const meta = email?.metadata || {}
@@ -513,12 +612,20 @@ function ConversationTab({ email, prospect, reply, onSimulateReply, qualified, s
       {/* Reply / qualify area */}
       {email && !email.error && !reply && (
         <div className="conv-action-row">
-          <button className="btn-reply" onClick={onSimulateReply}>
-            💬 Simulate Prospect Reply → Qualify + SMS Follow-up
-          </button>
-          <span className="conv-action-note">
-            Triggers email reply → qualified → Cal.com booking + SMS via Africa's Talking
-          </span>
+          <div className="gmail-reply-notice">
+            <span className="gmail-reply-icon">📬</span>
+            <div className="gmail-reply-text">
+              <strong>Step 1 — Reply in Gmail:</strong>
+              <ol className="gmail-reply-steps">
+                <li>Open <strong>Gmail</strong> → find the email from <code>onboarding@resend.dev</code></li>
+                <li>Click <strong>Reply</strong> → type anything positive, e.g. <em>"Interested — worth 30 min"</em> → <strong>Send</strong></li>
+              </ol>
+              <strong>Step 2 — Wait ~15 s:</strong>
+              <ol className="gmail-reply-steps">
+                <li>The IMAP poller detects your reply automatically → Cal.com books → dashboard updates.</li>
+              </ol>
+            </div>
+          </div>
         </div>
       )}
 
@@ -922,7 +1029,7 @@ const TABS = [
 ]
 
 function ArtifactPanel({ brief, gap, email, hubspot, calcom, prospect,
-                         reply, onSimulateReply, qualified, smsResult,
+                         reply, qualified, smsResult,
                          activeTab, setActiveTab, sessionTs,
                          bench, ablation, evidence }) {
   return (
@@ -939,7 +1046,7 @@ function ArtifactPanel({ brief, gap, email, hubspot, calcom, prospect,
       <div className="tab-content">
         {activeTab === 'brief'     && <SignalBriefTab brief={brief} gap={gap} />}
         {activeTab === 'conv'      && <ConversationTab email={email} prospect={prospect}
-                                       reply={reply} onSimulateReply={onSimulateReply}
+                                       reply={reply}
                                        qualified={qualified} smsResult={smsResult} />}
         {activeTab === 'hubspot'   && <HubSpotTab hubspot={hubspot} sessionTs={sessionTs} />}
         {activeTab === 'calcom'    && <CalcomTab calcom={calcom} />}
@@ -970,6 +1077,7 @@ export default function App() {
   const [qualified, setQualified] = useState(false)
   const [smsResult, setSmsResult] = useState(null)
   const [journey,   setJourney]   = useState('selected')
+  const [poller,    setPoller]    = useState(null)
   const sessionTs = useRef(Date.now() / 1000)
 
   // Load prospects + bench + ablation + evidence on mount
@@ -980,7 +1088,49 @@ export default function App() {
     fetch('/api/evidence').then(r => r.json()).then(setEvidence).catch(console.error)
   }, [])
 
-  // Load all artifacts when prospect selected
+  // Poll the Gmail IMAP poller status every 10 s
+  useEffect(() => {
+    const refreshPoller = () =>
+      fetch('/api/poller/status').then(r => r.json()).then(setPoller).catch(() => {})
+    refreshPoller()
+    const id = setInterval(refreshPoller, 10_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Poll for real Gmail reply every 5 s after email is sent and before reply arrives.
+  // When the IMAP poller detects the reply it writes to inbox.jsonl and books Cal.com.
+  // This loop surfaces that in the dashboard without a page reload.
+  useEffect(() => {
+    if (!selected || !email || email.error || reply) return  // only poll while waiting
+    const pollReply = () => {
+      fetch(`/api/inbox/${selected.id}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) return  // not yet
+          // Real reply detected — update conversation tab
+          const replyText = data.text || `Reply received (${data.kind})`
+          setReply(replyText)
+          setJourney('replied')
+          setActiveTab('conv')
+          // Refresh HubSpot and Cal.com — the poller already booked them
+          setTimeout(() => {
+            setQualified(true)
+            setJourney('qualified')
+            fetch(`/api/hubspot/${encodeURIComponent(selected.contact.email)}`)
+              .then(r => r.json()).then(setHubspot)
+            fetch(`/api/calcom/${encodeURIComponent(selected.contact.email)}`)
+              .then(r => r.json()).then(d => {
+                setCalcom(d)
+                if (!d.error) setJourney('booked')
+              })
+          }, 1500)
+        })
+        .catch(() => {})
+    }
+    const id = setInterval(pollReply, 5_000)
+    return () => clearInterval(id)
+  }, [selected, email, reply])
+
   useEffect(() => {
     if (!selected) return
     setBrief(null); setGap(null); setEmail(null); setHubspot(null); setCalcom(null)
@@ -1036,40 +1186,56 @@ export default function App() {
     es.onerror = () => { setPipeline(prev => ({ ...prev, running: false })); es.close() }
   }, [selected, pipeline.running])
 
-  // Simulate prospect reply + fire real AT SMS as warm-lead follow-up
+  // Simulate prospect reply — fires the real webhook handler chain:
+  //   POST /api/reply/{id}  →  _on_email_reply(reply_positive)
+  //                         →  bench gate  →  Cal.com book  →  HubSpot update
+  // Then sends SMS warm-lead follow-up via Africa's Talking.
   const simulateReply = useCallback(() => {
-    if (!selected || !email) return
-    const seg = email.metadata?.segment || selected.segment_hint || 1
+    if (!selected) return
+    const seg = (email?.metadata?.segment) || selected.segment_hint || 1
     const replyText = SIMULATED_REPLIES[seg] || SIMULATED_REPLIES[1]
     setReply(replyText)
-    setSmsResult(null)  // show spinner
+    setSmsResult(null)
     setJourney('replied')
+    setActiveTab('conv')
 
-    // Fire real SMS via Africa's Talking (warm_lead=True — prospect just replied)
-    const smsBody = `Hi ${selected.contact.first_name}, thanks for replying — sending calendar link now. — Tenacious`
-    fetch(`/api/sms-send/${selected.id}`, {
+    // Step 1 — fire the real webhook handler (books Cal.com + updates HubSpot)
+    fetch(`/api/reply/${selected.id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: smsBody }),
+      body: JSON.stringify({ text: replyText }),
     })
       .then(r => r.json())
+      .then(() => {
+        // Step 2 — SMS warm-lead follow-up (prospect just replied → warm signal)
+        const smsBody = `Hi ${selected.contact.first_name}, thanks for replying — sending calendar link now. — Tenacious`
+        return fetch(`/api/sms-send/${selected.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: smsBody }),
+        }).then(r => r.json())
+      })
       .then(setSmsResult)
       .catch(err => setSmsResult({ error: String(err), provider: 'error' }))
 
-    // Advance journey and qualify after a short delay
+    // Step 3 — refresh all artifacts after short delay (booking will appear)
     setTimeout(() => {
       setQualified(true)
       setJourney('qualified')
-      // Refresh HubSpot to show stage: warm_lead_email_reply → Lead Status: Connected
       fetch(`/api/hubspot/${encodeURIComponent(selected.contact.email)}`)
         .then(r => r.json()).then(setHubspot)
-      setTimeout(() => setJourney('booked'), 600)
-    }, 800)
+      fetch(`/api/calcom/${encodeURIComponent(selected.contact.email)}`)
+        .then(r => r.json()).then(d => {
+          setCalcom(d)
+          if (!d.error) setJourney('booked')
+        })
+    }, 1200)
   }, [selected, email])
 
   return (
     <div className="app">
       <Header bench={bench} />
+      <PollerStrip poller={poller} />
       <div className="body">
         <Sidebar prospects={prospects} selected={selected} onSelect={setSelected} />
         <main className="main">
@@ -1080,7 +1246,7 @@ export default function App() {
             <ArtifactPanel
               brief={brief} gap={gap} email={email}
               hubspot={hubspot} calcom={calcom} prospect={selected}
-              reply={reply} onSimulateReply={simulateReply} qualified={qualified}
+              reply={reply} qualified={qualified}
               smsResult={smsResult}
               activeTab={activeTab} setActiveTab={setActiveTab}
               sessionTs={sessionTs.current}

@@ -239,21 +239,26 @@ class TestWarmLeadRequired:
             ch.send(to="+251900000000", body="Hello", warm_lead=False)
 
     def test_warm_lead_flag_bypasses_gate(self, tmp_path):
+        from unittest.mock import patch, MagicMock
         ch = self._cold_channel(tmp_path)
-        # warm_lead=True should not raise — it will attempt send (mock path)
-        result = ch.send(to="+251900000000", body="Hello", warm_lead=True, synthetic=True)
-        assert result.ok is True
+        # warm_lead=True should not raise the warm-lead gate.
+        # AT_API_KEY not set → RuntimeError from channel. Confirm only the
+        # WarmLeadRequired gate is bypassed, not the credential check.
+        with pytest.raises(RuntimeError, match="AT_API_KEY"):
+            ch.send(to="+251900000000", body="Hello", warm_lead=True, synthetic=True)
 
     def test_prior_sms_engagement_qualifies(self, tmp_path):
+        from unittest.mock import patch, MagicMock
         ch = self._cold_channel(tmp_path)
         # Write a prior inbound SMS record
         ch.sink_path.write_text(
             json.dumps({"channel": "sms_inbound", "from": "+251900000000", "text": "Yes"}) + "\n",
             encoding="utf-8",
         )
-        # Should not raise — prior engagement found
-        result = ch.send(to="+251900000000", body="Follow up", warm_lead=False, synthetic=True)
-        assert result.ok is True
+        # Prior engagement found — warm-lead gate passes.
+        # AT_API_KEY not set → RuntimeError from channel (not WarmLeadRequired).
+        with pytest.raises(RuntimeError, match="AT_API_KEY"):
+            ch.send(to="+251900000000", body="Follow up", warm_lead=False, synthetic=True)
 
 
 # ---------------------------------------------------------------------------
@@ -376,11 +381,30 @@ class TestKillSwitch:
 class TestHubSpotRequiredProperties:
     """upsert_contact() must raise ValueError when required fields are absent."""
 
+    @pytest.fixture(autouse=True)
+    def _mock_hubspot_sdk(self, monkeypatch):
+        """Inject a mock hubspot package into sys.modules for the duration of each test."""
+        from unittest.mock import MagicMock
+        mock_pkg = MagicMock()
+        monkeypatch.setitem(sys.modules, "hubspot", mock_pkg)
+        monkeypatch.setitem(sys.modules, "hubspot.crm", mock_pkg.crm)
+        monkeypatch.setitem(sys.modules, "hubspot.crm.contacts", mock_pkg.crm.contacts)
+        monkeypatch.setitem(sys.modules, "hubspot.crm.contacts.exceptions", mock_pkg.crm.contacts.exceptions)
+
     def _channel(self, tmp_path: Path) -> HubSpotChannel:
-        cfg = Config(hubspot_token=None)  # forces mock path
-        ch = HubSpotChannel(cfg)
+        from unittest.mock import MagicMock
+        from agent.config import load_config
+        # Bypass __init__ (SDK not installed in test env) and wire state manually
+        ch = object.__new__(HubSpotChannel)
+        ch.config = load_config()
         ch.store_path = tmp_path / "hubspot_mock.json"
+        ch.store_path.parent.mkdir(parents=True, exist_ok=True)
         ch.store_path.write_text(json.dumps({"contacts": {}, "engagements": []}))
+        # Replace client with a full mock so no real API calls happen
+        ch._client = MagicMock()
+        ch._client.crm.contacts.search_api.do_search.return_value = MagicMock(results=[])
+        ch._client.crm.contacts.basic_api.create.return_value = MagicMock(id="hs_test_001")
+        ch._client.crm.contacts.basic_api.update.return_value = MagicMock()
         return ch
 
     def test_missing_crunchbase_id_raises(self, tmp_path):
@@ -429,6 +453,12 @@ class TestHubSpotRequiredProperties:
             "engagements": [],
         }
         ch.store_path.write_text(json.dumps(store))
+        # Mock search to return the existing contact
+        from unittest.mock import MagicMock
+        existing_mock = MagicMock()
+        existing_mock.id = "hs_existing"
+        existing_mock.properties = {"crunchbase_id": "cb_001"}
+        ch._client.crm.contacts.search_api.do_search.return_value = MagicMock(results=[existing_mock])
         # Now upsert with only last_enriched_at — crunchbase_id comes from existing record
         result = ch.upsert_contact(
             email="test@example.com",
